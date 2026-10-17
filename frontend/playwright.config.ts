@@ -2,6 +2,8 @@ import { defineConfig } from '@playwright/test';
 
 export default defineConfig({
   testDir: './tests',
+  // Keep Playwright cleanup separate from standalone browser reports and credentials.
+  outputDir: './test-results/playwright',
   timeout: 30000,
   retries: 2,
   workers: 1,
@@ -49,6 +51,11 @@ export default defineConfig({
       testMatch: 'comprehensive.spec.ts',
       use: { browserName: 'chromium' },
       retries: 1
+    },
+    {
+      name: 'forum-features',
+      testMatch: 'e2e-forum-features.spec.ts',
+      use: { browserName: 'chromium' }
     }
   ],
   reporter: [['list']],

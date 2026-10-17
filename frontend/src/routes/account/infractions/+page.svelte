@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { modal } from '$lib/actions/modal';
   import { api } from '$lib/api/client';
   import { auth } from '$lib/stores/auth.svelte';
   import { toast } from '$lib/stores/toast.svelte';
@@ -160,8 +161,8 @@
 
   <!-- Appeal form modal -->
   {#if appealType}
-    <div class="modal-backdrop" onclick={cancelAppeal} role="presentation">
-      <div class="modal" onclick={(e) => e.stopPropagation()} role="dialog">
+    <dialog class="modal-backdrop" data-modal="overlay" use:modal={cancelAppeal} >
+      <div class="modal"  >
         <h2>Appeal this {appealType}</h2>
         <p class="modal-help">Explain why you believe this decision should be reconsidered. A senior moderator (not the one who issued it) will review. Be honest and specific — appeals based on blaming others or denying facts the mod team can verify are typically denied.</p>
         <textarea bind:value={appealReason} rows="6" placeholder="Your appeal (min 10 characters)"></textarea>
@@ -172,7 +173,7 @@
           </button>
         </div>
       </div>
-    </div>
+    </dialog>
   {/if}
 {/if}
 

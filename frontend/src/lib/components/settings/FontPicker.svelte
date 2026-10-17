@@ -1,4 +1,5 @@
 <script lang="ts">
+  const a11yId = $props.id();
   let {
     label = 'Font',
     value = $bindable('Inter')
@@ -22,8 +23,8 @@
 </script>
 
 <div class="font-picker">
-  <label class="font-label">{label}</label>
-  <select bind:value class="font-select">
+  <label for={`${a11yId}-field-1`} class="font-label">{label}</label>
+  <select id={`${a11yId}-field-1`} bind:value class="font-select">
     {#each fonts as font}
       <option value={font} style:font-family="'{font}'">{font}</option>
     {/each}

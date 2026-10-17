@@ -71,7 +71,8 @@
   let activePanel = $state<'gif' | 'sticker' | 'draw' | 'settings' | null>(null);
 
   // Chat theme
-  let chatTheme = $state<ChatTheme>(getChatTheme(conversationId));
+  let chatTheme = $state<ChatTheme>(getChatTheme(''));
+  $effect(() => { chatTheme = getChatTheme(conversationId); });
   let effectContainer: HTMLDivElement;
   let windowEl: HTMLDivElement;
 
@@ -649,7 +650,7 @@
 </script>
 
 <!-- svelte-ignore a11y_no_static_element_interactions -->
-<div class="chat-window" class:nudge-shake={nudging} class:compact={chatTheme.compact} bind:this={windowEl} onclick={closeContextMenu}>
+<div class="chat-window" class:nudge-shake={nudging} class:compact={chatTheme.compact} bind:this={windowEl} onkeydown={(event) => { if (event.key === 'Escape') closeContextMenu(); }}>
   <!-- Effects overlay -->
   <div class="effect-container" bind:this={effectContainer}></div>
 
@@ -980,7 +981,7 @@
 
   /* Reply / Edit bar */
   .reply-bar, .edit-bar { padding: 4px 8px; font-size: 11px; color: var(--text-muted); background: var(--bg-secondary); border-top: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center; }
-  .reply-bar button, .edit-bar button { background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 12px; }
+  .reply-bar button { background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 12px; }
   .reply-bar button:hover { color: var(--danger); }
 
   /* Command autocomplete */

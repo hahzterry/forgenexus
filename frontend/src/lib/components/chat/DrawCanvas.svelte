@@ -92,6 +92,8 @@
       {#each COLORS as c}
         <button
           class="color-btn"
+          aria-label={`Pen color ${c}`}
+          aria-pressed={color === c}
           class:active={color === c}
           style:background={c}
           onclick={() => { color = c; }}
@@ -99,7 +101,7 @@
       {/each}
     </div>
     <div class="brush-row">
-      <input type="range" min="1" max="12" bind:value={brushSize} class="brush-slider" />
+      <input type="range" min="1" max="12" bind:value={brushSize} class="brush-slider" aria-label="Brush size" />
       <button class="tool-btn" onclick={clear}>Clear</button>
       <button class="tool-btn send-btn" onclick={send}>Send</button>
     </div>

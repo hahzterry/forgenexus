@@ -1,4 +1,5 @@
 <script lang="ts">
+  const a11yId = $props.id();
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
   import { api } from '$lib/api/client';
@@ -6,6 +7,8 @@
   import { toast } from '$lib/stores/toast.svelte';
   import Breadcrumb from '$lib/components/layout/Breadcrumb.svelte';
   import FormattingToolbar from '$lib/components/editor/FormattingToolbar.svelte';
+  import SmiliesTray from '$lib/components/editor/SmiliesTray.svelte';
+  import ForumPostingRules from '$lib/components/forum/ForumPostingRules.svelte';
 
   let forum = $state<any>(null);
   let loading = $state(true);
@@ -70,6 +73,19 @@
         return;
       }
     }
+  }
+
+  function insertSmilie(code: string) {
+    if (!bodyTextarea) return;
+    const start = bodyTextarea.selectionStart;
+    const before = bodyTextarea.value.substring(0, start);
+    const after = bodyTextarea.value.substring(bodyTextarea.selectionEnd);
+    bodyTextarea.value = before + code + after;
+    bodyTextarea.dispatchEvent(new Event("input"));
+    body = bodyTextarea.value;
+    const newPos = start + code.length;
+    bodyTextarea.setSelectionRange(newPos, newPos);
+    bodyTextarea.focus();
   }
 
   $effect(() => {
@@ -227,6 +243,7 @@
             required
             onpaste={handlePaste}
           ></textarea>
+          <SmiliesTray onSelect={insertSmilie} />
           {#if pasteUploading}
             <div class="upload-indicator">Uploading image...</div>
           {/if}
@@ -279,11 +296,11 @@
             />
           </div>
 
-          <div class="form-row">
-            <label>Options</label>
+          <div aria-labelledby={`${a11yId}-group-1`} role="group" class="form-row">
+            <span id={`${a11yId}-group-1`} class="control-label">Options</span>
             {#each pollOptions as option, idx}
               <div class="poll-option-row">
-                <input
+                <input aria-label={`Poll option ${idx + 1}`}
                   type="text"
                   bind:value={pollOptions[idx]}
                   placeholder="Option {idx + 1}"
@@ -308,6 +325,16 @@
         </button>
       </div>
     </form>
+
+    <div style="margin-top: 24px;">
+      <ForumPostingRules
+        canPostThread={!forum?.is_locked}
+        canReply={true}
+        canAttach={true}
+        canEdit={true}
+        isLocked={forum?.is_locked}
+      />
+    </div>
   {/if}
 </div>
 
@@ -323,7 +350,7 @@
   .thread-form { display: flex; flex-direction: column; gap: 16px; }
 
   .form-row { display: flex; flex-direction: column; gap: 6px; }
-  .form-row label { font-size: 13px; font-weight: 600; color: var(--text-primary); }
+  .form-row :is(label, .control-label) { font-size: 13px; font-weight: 600; color: var(--text-primary); }
 
   .label-row { display: flex; justify-content: space-between; align-items: center; }
 

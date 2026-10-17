@@ -1,4 +1,5 @@
 <script lang="ts">
+  const a11yId = $props.id();
   import { page } from '$app/stores';
   import { api } from '$lib/api/client';
   import type { DataTable, DataRow, DataColumn } from '$lib/stores/plugins.svelte';
@@ -114,8 +115,8 @@
 
         {#if showRowForm}
           <div class="inline-form">
-            <label>Data (JSON matching column schema)</label>
-            <textarea bind:value={rowData} rows="3" placeholder="Enter JSON data matching columns"></textarea>
+            <label for={`${a11yId}-field-1`}>Data (JSON matching column schema)</label>
+            <textarea id={`${a11yId}-field-1`} bind:value={rowData} rows="3" placeholder="Enter JSON data matching columns"></textarea>
             <button class="btn btn-primary" onclick={addRow}>Insert</button>
           </div>
         {/if}

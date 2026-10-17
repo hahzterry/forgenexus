@@ -1,4 +1,5 @@
 <script lang="ts">
+  const a11yId = $props.id();
   import { admin } from '$lib/stores/admin.svelte';
   import { toast } from '$lib/stores/toast.svelte';
 
@@ -159,7 +160,7 @@
   {#if loading}
     <p class="ld">Loading settings...</p>
   {:else}
-    {#each catOrder as cat}
+    {#each catOrder as cat, a11yIndex1}
       {@const items = admin.settings[cat]}
       {#if items && Array.isArray(items) && items.length > 0}
         <section class="sec" class:collapsed={collapsed[cat]}>
@@ -178,10 +179,10 @@
 
           {#if !collapsed[cat]}
             <div class="sec-body">
-              {#each items as item (item.key)}
+              {#each items as item, a11yIndex2 (item.key)}
                 <div class="row">
                   <div class="row-label">
-                    <label>{prettyLabel(item.key)}</label>
+                    <label for={`${a11yId}-setting-${item.key}`}>{prettyLabel(item.key)}</label>
                     {#if settingDescriptions[item.key]}
                       <span class="row-hint">{settingDescriptions[item.key]}</span>
                     {/if}
@@ -189,7 +190,7 @@
                   <div class="row-input">
                     {#if boolKeys.has(item.key)}
                       <label class="toggle-switch">
-                        <input
+                        <input id={`${a11yId}-setting-${item.key}`}
                           type="checkbox"
                           checked={edited[item.key] === 'true'}
                           onchange={(e: Event) => { edited = { ...edited, [item.key]: (e.target as HTMLInputElement).checked ? 'true' : 'false' }; }}
@@ -198,7 +199,7 @@
                         <span class="toggle-label">{edited[item.key] === 'true' ? 'Enabled' : 'Disabled'}</span>
                       </label>
                     {:else if item.key === 'registration_mode'}
-                      <select
+                      <select id={`${a11yId}-setting-${item.key}`}
                         value={edited[item.key]}
                         onchange={(e: Event) => { edited = { ...edited, [item.key]: (e.target as HTMLSelectElement).value }; }}
                       >
@@ -207,33 +208,33 @@
                         <option value="approval">Approval Required</option>
                       </select>
                     {:else if textareaKeys.has(item.key)}
-                      <textarea
+                      <textarea id={`${a11yId}-setting-${item.key}`}
                         rows="3"
                         value={edited[item.key]}
                         oninput={(e: Event) => { edited = { ...edited, [item.key]: (e.target as HTMLTextAreaElement).value }; }}
                       ></textarea>
                     {:else if numKeys.has(item.key)}
-                      <input
+                      <input id={`${a11yId}-setting-${item.key}`}
                         type="number"
                         value={edited[item.key]}
                         oninput={(e: Event) => { edited = { ...edited, [item.key]: (e.target as HTMLInputElement).value }; }}
                       />
                     {:else if item.key === 'claude_api_key'}
-                      <input
+                      <input id={`${a11yId}-setting-${item.key}`}
                         type="password"
                         value={edited[item.key]}
                         oninput={(e: Event) => { edited = { ...edited, [item.key]: (e.target as HTMLInputElement).value }; }}
                         placeholder="sk-..."
                       />
                     {:else if item.key.endsWith('_url')}
-                      <input
+                      <input id={`${a11yId}-setting-${item.key}`}
                         type="url"
                         value={edited[item.key]}
                         oninput={(e: Event) => { edited = { ...edited, [item.key]: (e.target as HTMLInputElement).value }; }}
                         placeholder="https://..."
                       />
                     {:else}
-                      <input
+                      <input id={`${a11yId}-setting-${item.key}`}
                         type="text"
                         value={edited[item.key]}
                         oninput={(e: Event) => { edited = { ...edited, [item.key]: (e.target as HTMLInputElement).value }; }}
@@ -430,6 +431,7 @@
 
   /* Toggle switch */
   .toggle-switch {
+    position: relative;
     display: flex;
     align-items: center;
     gap: 10px;
@@ -437,8 +439,9 @@
   }
 
   .toggle-switch input {
-    display: none;
+    position: absolute; left: 0; top: 50%; transform: translateY(-50%); opacity: 0; width: 40px; height: 22px; margin: 0; z-index: 1; cursor: pointer;
   }
+  .toggle-switch:focus-within .toggle-slider { outline: 2px solid var(--accent); outline-offset: 3px; }
 
   .toggle-slider {
     width: 40px;

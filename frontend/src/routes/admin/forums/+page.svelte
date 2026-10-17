@@ -1,4 +1,5 @@
 <script lang="ts">
+  const a11yId = $props.id();
   import { admin } from '$lib/stores/admin.svelte';
   import { api } from '$lib/api/client';
   import DraggableList from '$lib/components/admin/DraggableList.svelte';
@@ -148,10 +149,10 @@
     <div class="form-modal">
       <h3>{editingCategory ? 'Edit' : 'New'} Category</h3>
       <div class="form-grid">
-        <div class="field"><label>Name</label><input type="text" bind:value={formName} /></div>
-        <div class="field"><label>Description</label><input type="text" bind:value={formDescription} /></div>
-        <div class="field"><label>Color</label><input type="color" bind:value={formColor} /></div>
-        <div class="field"><label>Icon</label><input type="text" bind:value={formIcon} placeholder="e.g. folder" /></div>
+        <div class="field"><label for={`${a11yId}-field-1`}>Name</label><input id={`${a11yId}-field-1`} type="text" bind:value={formName} /></div>
+        <div class="field"><label for={`${a11yId}-field-2`}>Description</label><input id={`${a11yId}-field-2`} type="text" bind:value={formDescription} /></div>
+        <div class="field"><label for={`${a11yId}-field-3`}>Color</label><input id={`${a11yId}-field-3`} type="color" bind:value={formColor} /></div>
+        <div class="field"><label for={`${a11yId}-field-4`}>Icon</label><input id={`${a11yId}-field-4`} type="text" bind:value={formIcon} placeholder="e.g. folder" /></div>
         <label class="toggle"><input type="checkbox" bind:checked={formIsVisible} /> Visible</label>
       </div>
       <div class="form-actions">
@@ -165,13 +166,13 @@
     <div class="form-modal">
       <h3>{editingForum ? 'Edit' : 'New'} Forum</h3>
       <div class="form-grid">
-        <div class="field"><label>Name</label><input type="text" bind:value={formName} /></div>
-        <div class="field"><label>Description</label><input type="text" bind:value={formDescription} /></div>
-        <div class="field"><label>Color</label><input type="color" bind:value={formColor} /></div>
-        <div class="field"><label>Icon</label><input type="text" bind:value={formIcon} /></div>
+        <div class="field"><label for={`${a11yId}-field-5`}>Name</label><input id={`${a11yId}-field-5`} type="text" bind:value={formName} /></div>
+        <div class="field"><label for={`${a11yId}-field-6`}>Description</label><input id={`${a11yId}-field-6`} type="text" bind:value={formDescription} /></div>
+        <div class="field"><label for={`${a11yId}-field-7`}>Color</label><input id={`${a11yId}-field-7`} type="color" bind:value={formColor} /></div>
+        <div class="field"><label for={`${a11yId}-field-8`}>Icon</label><input id={`${a11yId}-field-8`} type="text" bind:value={formIcon} /></div>
         <div class="field">
-          <label>Parent Forum (sub-forum of)</label>
-          <select bind:value={formParentId} class="form-select">
+          <label for={`${a11yId}-field-9`}>Parent Forum (sub-forum of)</label>
+          <select id={`${a11yId}-field-9`} bind:value={formParentId} class="form-select">
             <option value="">None (top-level)</option>
             {#each categories as cat}
               {#each (cat.forums || []) as f}
@@ -187,8 +188,8 @@
         <label class="toggle"><input type="checkbox" bind:checked={formIsPrivate} /> Private (hidden from public)</label>
         <label class="toggle"><input type="checkbox" bind:checked={formRequireApproval} /> Require Post Approval</label>
         <label class="toggle"><input type="checkbox" bind:checked={formAllowRatings} /> Allow Thread Ratings</label>
-        <div class="field"><label>Min Post Length</label><input type="number" bind:value={formMinPostLength} min="1" max="1000" /></div>
-        <div class="field full-width"><label>Forum Rules</label><textarea bind:value={formRules} rows="4" placeholder="Optional rules displayed at the top of the forum..."></textarea></div>
+        <div class="field"><label for={`${a11yId}-field-10`}>Min Post Length</label><input id={`${a11yId}-field-10`} type="number" bind:value={formMinPostLength} min="1" max="1000" /></div>
+        <div class="field full-width"><label for={`${a11yId}-field-11`}>Forum Rules</label><textarea id={`${a11yId}-field-11`} bind:value={formRules} rows="4" placeholder="Optional rules displayed at the top of the forum..."></textarea></div>
       </div>
       <div class="form-actions">
         <button class="btn" onclick={() => { showForumForm = false; }}>Cancel</button>

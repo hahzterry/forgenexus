@@ -5,6 +5,8 @@
   import AvatarFrame from '$lib/components/common/AvatarFrame.svelte';
   import { notificationStore } from '$lib/stores/notifications.svelte';
 
+  let { communityHero = false }: { communityHero?: boolean } = $props();
+
   interface WelcomeStats {
     total_members: number;
     total_threads: number;
@@ -104,19 +106,19 @@
   }
 </script>
 
-<div class="welcome-center">
+<div class="welcome-center" class:community-hero={communityHero}>
   <button class="welcome-header" onclick={toggleCollapse} aria-expanded={!collapsed}>
     <div class="welcome-title-row">
       <h2>
         {#if !auth.isLoggedIn}
-          Welcome to <span class="accent">ForgeNexus</span>
+          {#if communityHero}Community snapshot{:else}Welcome to <span class="accent">ForgeNexus</span>{/if}
         {:else}
           Welcome back, <span class="accent">{auth.user?.display_name || auth.user?.username}</span>
         {/if}
       </h2>
       <span class="collapse-icon" class:rotated={collapsed}>&#9660;</span>
     </div>
-    {#if !auth.isLoggedIn}
+    {#if !auth.isLoggedIn && !communityHero}
       <p class="welcome-subtitle">The next generation community platform</p>
     {:else if auth.user}
       <p class="welcome-subtitle">
@@ -155,6 +157,9 @@
         <div class="welcome-loading">Loading...</div>
 
       {:else if loadError && !auth.isLoggedIn}
+        {#if communityHero}
+          <p>Community activity is unavailable right now. Explore the forums below.</p>
+        {:else}
         <!-- Fallback guest CTA when stats fail to load -->
         <div class="welcome-sections">
           <div class="welcome-section guest-cta">
@@ -169,10 +174,12 @@
           </div>
         </div>
 
+        {/if}
       {:else if !auth.isLoggedIn}
         <!-- GUEST VIEW -->
         <div class="welcome-sections">
           <div class="welcome-section guest-cta">
+            {#if !communityHero}
             <div class="cta-content">
               <h3>Join our community</h3>
               {#if stats}
@@ -183,6 +190,7 @@
                 <a href="/auth/login" class="btn btn-secondary">Sign In</a>
               </div>
             </div>
+            {/if}
             {#if stats}
               <div class="quick-stats-grid">
                 <div class="mini-stat">
@@ -498,6 +506,11 @@
     color: var(--text-muted);
     margin: 0 0 8px;
     letter-spacing: 0.05em;
+  }
+
+  .community-hero .guest-cta .quick-stats-grid { width: 100%; grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  @media (max-width: 480px) {
+    .community-hero .guest-cta .quick-stats-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   }
 
   /* Guest CTA */

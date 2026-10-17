@@ -6,6 +6,7 @@
   interface HeatmapEntry { date: string; count: number; }
 
   let data = $state<HeatmapEntry[]>([]);
+  let focusedDate = $state<string | null>(null);
   let loading = $state(true);
 
   $effect(() => {
@@ -78,9 +79,18 @@
 
   let hoveredCell = $state<{ date: string; count: number; x: number; y: number } | null>(null);
 
-  function handleHover(e: MouseEvent, cell: { date: string; count: number }) {
+  function handleHover(e: Event, cell: { date: string; count: number }) {
     const rect = (e.target as HTMLElement).getBoundingClientRect();
     hoveredCell = { date: cell.date, count: cell.count, x: rect.left + rect.width / 2, y: rect.top - 8 };
+  }
+  function navigateDay(event: KeyboardEvent, index: number) {
+    const offsets: Record<string, number> = { ArrowUp: -1, ArrowDown: 1, ArrowLeft: -7, ArrowRight: 7 };
+    const next = event.key === 'Home' ? 0 : event.key === 'End' ? grid.length - 1 : index + (offsets[event.key] ?? 0);
+    if (!(event.key in offsets) && !['Home', 'End'].includes(event.key)) return;
+    event.preventDefault();
+    const target = Math.max(0, Math.min(grid.length - 1, next));
+    focusedDate = grid[target].date;
+    (event.currentTarget as HTMLElement).parentElement?.querySelectorAll<HTMLButtonElement>('button')[target]?.focus();
   }
 </script>
 
@@ -104,15 +114,20 @@
         <span>Fri</span>
         <span></span>
       </div>
-      <div class="heatmap-grid" style="grid-template-columns: repeat({totalWeeks}, 1fr)">
-        {#each grid as cell}
-          <div
+      <div role="group" aria-label="Daily posting activity" class="heatmap-grid" style="grid-template-columns: repeat({totalWeeks}, 1fr)">
+        {#each grid as cell, cellIndex}
+          <button type="button"
+            aria-label={`${cell.count} posts on ${cell.date}`}
+            tabindex={cell.date === (focusedDate ?? grid[0]?.date) ? 0 : -1}
+            onclick={(event) => handleHover(event, cell)}
+            onfocus={(event) => { focusedDate = cell.date; handleHover(event, cell); }}
+            onblur={() => hoveredCell = null}
+            onkeydown={(event) => navigateDay(event, cellIndex)}
             class="heatmap-cell level-{getLevel(cell.count)}"
             style="grid-column: {cell.weekIndex + 1}; grid-row: {cell.dayOfWeek + 1}"
-            role="gridcell"
             onmouseenter={(e) => handleHover(e, cell)}
             onmouseleave={() => hoveredCell = null}
-          ></div>
+          ></button>
         {/each}
       </div>
     </div>
@@ -134,6 +149,7 @@
 {/if}
 
 <style>
+  .heatmap-grid .heatmap-cell { border: 0; padding: 0; }
   .heatmap-container { overflow-x: auto; }
   .heatmap-loading { text-align: center; padding: 20px; color: var(--text-muted); font-size: 13px; }
 

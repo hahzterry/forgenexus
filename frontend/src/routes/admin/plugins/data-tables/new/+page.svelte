@@ -1,4 +1,5 @@
 <script lang="ts">
+  const a11yId = $props.id();
   import { goto } from '$app/navigation';
   import { plugins } from '$lib/stores/plugins.svelte';
 
@@ -30,17 +31,17 @@
 
   <div class="form-card">
     <div class="form-group">
-      <label>Name</label>
-      <input type="text" bind:value={name} placeholder="e.g., user_inventory" />
+      <label for={`${a11yId}-field-1`}>Name</label>
+      <input id={`${a11yId}-field-1`} type="text" bind:value={name} placeholder="e.g., user_inventory" />
     </div>
     <div class="form-group">
-      <label>Description</label>
-      <textarea bind:value={description} rows="2" placeholder="What data does this table store?"></textarea>
+      <label for={`${a11yId}-field-2`}>Description</label>
+      <textarea id={`${a11yId}-field-2`} bind:value={description} rows="2" placeholder="What data does this table store?"></textarea>
     </div>
     <div class="form-row">
       <div class="form-group">
-        <label>Scope</label>
-        <select bind:value={scope}>
+        <label for={`${a11yId}-field-3`}>Scope</label>
+        <select id={`${a11yId}-field-3`} bind:value={scope}>
           <option value="global">Global</option>
           <option value="per_user">Per User</option>
           <option value="per_thread">Per Thread</option>
@@ -48,8 +49,8 @@
         </select>
       </div>
       <div class="form-group">
-        <label>Max Rows</label>
-        <input type="number" bind:value={maxRows} min="100" max="100000" />
+        <label for={`${a11yId}-field-4`}>Max Rows</label>
+        <input id={`${a11yId}-field-4`} type="number" bind:value={maxRows} min="100" max="100000" />
       </div>
     </div>
 

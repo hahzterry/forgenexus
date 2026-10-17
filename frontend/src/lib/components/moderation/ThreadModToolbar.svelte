@@ -16,9 +16,9 @@
     onUpdate?: () => void;
   } = $props();
 
-  let locked = $state(isLocked);
-  let pinned = $state(isPinned);
-  let hidden = $state(isHidden);
+  let locked = $derived(isLocked);
+  let pinned = $derived(isPinned);
+  let hidden = $derived(isHidden);
   let showMoveForm = $state(false);
   let showMergeForm = $state(false);
   let moveForumId = $state('');

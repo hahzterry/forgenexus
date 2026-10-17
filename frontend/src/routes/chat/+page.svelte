@@ -11,7 +11,7 @@
   import { socketStore } from '$lib/stores/socket.svelte';
   import { api } from '$lib/api/client';
 
-  let messagesContainer: HTMLDivElement;
+  let messagesContainer = $state<HTMLDivElement>();
   let replyTo = $state<ChannelMessage | null>(null);
   let editingMessage = $state<ChannelMessage | null>(null);
   let showSearch = $state(false);

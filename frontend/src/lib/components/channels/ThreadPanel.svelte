@@ -34,7 +34,7 @@
   let loading = $state(true);
   let input = $state('');
   let sending = $state(false);
-  let messagesEl: HTMLDivElement;
+  let messagesEl = $state<HTMLDivElement>();
 
   $effect(() => {
     loadThread(threadId);

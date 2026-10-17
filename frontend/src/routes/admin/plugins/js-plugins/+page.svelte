@@ -45,9 +45,9 @@
 {:else}
   <div class="plugin-grid">
     {#each plugins.jsPlugins as plugin (plugin.id)}
-      <div class="plugin-card" onclick={() => goto(`/admin/plugins/js-plugins/${plugin.id}`)}>
+      <div class="plugin-card">
         <div class="card-header">
-          <span class="plugin-name">{plugin.name}</span>
+          <a class="plugin-name" href={`/admin/plugins/js-plugins/${plugin.id}`}>{plugin.name}</a>
           <span class="badge badge-{plugin.status}">{plugin.status}</span>
         </div>
         <p class="plugin-desc">{plugin.description || 'No description'}</p>
@@ -61,7 +61,7 @@
           <span>{plugin.execution_count} runs</span>
           <span>{plugin.last_executed_at ? new Date(plugin.last_executed_at).toLocaleDateString() : 'Never run'}</span>
         </div>
-        <div class="card-actions" onclick={(e: MouseEvent) => e.stopPropagation()}>
+        <div class="card-actions">
           {#if plugin.status !== 'active'}
             <button class="btn-sm" onclick={() => handleActivate(plugin.id)}>Activate</button>
           {:else}

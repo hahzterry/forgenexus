@@ -1,4 +1,5 @@
 <script lang="ts">
+  const a11yId = $props.id();
   let {
     label = 'Content',
     value = $bindable(''),
@@ -39,7 +40,7 @@
 </script>
 
 <div class="bbcode-editor">
-  <label class="editor-label">{label}</label>
+  <label for={`${a11yId}-group-1`} class="editor-label">{label}</label>
   <div class="toolbar">
     {#each buttons as btn}
       <button
@@ -55,7 +56,7 @@
     <button type="button" class="toolbar-btn" title="Code" onclick={() => insertTag('[code]', '[/code]')}>Code</button>
     <button type="button" class="toolbar-btn" title="List" onclick={() => insertTag('[list]\n[*] ', '\n[/list]')}>List</button>
   </div>
-  <textarea
+  <textarea id={`${a11yId}-group-1`}
     bind:this={textarea}
     bind:value
     {placeholder}

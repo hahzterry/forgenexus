@@ -1,4 +1,5 @@
 <script lang="ts">
+  const a11yId = $props.id();
   import { api } from '$lib/api/client';
 
   let {
@@ -51,8 +52,8 @@
   }
 </script>
 
-<div class="top-friends-editor">
-  <label class="editor-label">Top Friends ({value.length}/10)</label>
+<div aria-labelledby={`${a11yId}-group-1`} role="group" class="top-friends-editor">
+  <span id={`${a11yId}-group-1`} class="editor-label">Top Friends ({value.length}/10)</span>
 
   {#if value.length > 0}
     <div class="selected-friends">
@@ -78,7 +79,7 @@
         {#each friends as friend}
           {@const id = friend.id || friend.friend_id}
           {@const selected = value.includes(id)}
-          <button
+          <button aria-pressed={selected}
             type="button"
             class="friend-chip"
             class:selected

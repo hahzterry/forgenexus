@@ -448,7 +448,9 @@ defmodule ForgeNexus.Plugins.PluginsSchemasTest do
       refute req_cs.valid?
       assert "can't be blank" in errors_on(req_cs).name
 
-      bad_name_cs = SlashCommand.changeset(%SlashCommand{}, %{name: "123_invalid"})
+      assert SlashCommand.changeset(%SlashCommand{}, %{name: "123_valid"}).valid?
+
+      bad_name_cs = SlashCommand.changeset(%SlashCommand{}, %{name: "Invalid command!"})
       refute bad_name_cs.valid?
       assert "must be lowercase alphanumeric, 1-32 chars" in errors_on(bad_name_cs).name
     end

@@ -1,4 +1,5 @@
 <script lang="ts">
+  const a11yId = $props.id();
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
   import { api } from '$lib/api/client';
@@ -88,15 +89,15 @@
     </div>
     <div class="search-filters">
       <div class="filter-group">
-        <label class="filter-label">Type:</label>
-        <select bind:value={searchType} class="filter-select">
+        <label for={`${a11yId}-field-1`} class="filter-label">Type:</label>
+        <select id={`${a11yId}-field-1`} bind:value={searchType} class="filter-select">
           <option value="threads">Threads</option>
           <option value="posts">Posts</option>
         </select>
       </div>
       <div class="filter-group">
-        <label class="filter-label">Author:</label>
-        <input type="text" bind:value={authorFilter} placeholder="username" class="filter-input" />
+        <label for={`${a11yId}-field-2`} class="filter-label">Author:</label>
+        <input id={`${a11yId}-field-2`} type="text" bind:value={authorFilter} placeholder="username" class="filter-input" />
       </div>
     </div>
   </form>

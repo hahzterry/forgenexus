@@ -960,11 +960,73 @@ input:focus, textarea:focus, select:focus {
   }
 }
 
+/* ForgeNexus interface refresh: a calmer graphite palette, mint highlights,
+   clearer surfaces, and consistent interaction states across every route. */
+:root {
+  --on-accent: #07130f;
+  --bg-primary: #090d12;
+  --bg-secondary: #0e151b;
+  --bg-tertiary: #141e25;
+  --bg-hover: #1b2a30;
+  --bg-card: #111a20;
+  --bg-input: #0b1116;
+  --bg-elevated: #172229;
+  --accent: #62e2bf;
+  --accent-hover: #83f2d2;
+  --accent-dim: #37b697;
+  --accent-glow: rgba(98, 226, 191, .13);
+  --accent-muted: rgba(98, 226, 191, .08);
+  --accent-gradient: linear-gradient(135deg, #72efca, #3bc8a8);
+  --accent-gradient-hover: linear-gradient(135deg, #9af7dc, #58dab9);
+  --text-link: #72e9c8;
+  --text-link-hover: #a0f5dc;
+  --border-color: rgba(226, 242, 239, .075);
+  --border-hover: rgba(226, 242, 239, .14);
+  --border-accent: rgba(98, 226, 191, .27);
+  --glass-bg: rgba(16, 24, 30, .82);
+  --glass-border: rgba(226, 242, 239, .09);
+  --glass-blur: 18px;
+  --radius-lg: 14px;
+  --radius-xl: 19px;
+  --shadow-md: 0 8px 24px rgba(0, 0, 0, .2);
+  --shadow-lg: 0 16px 38px rgba(0, 0, 0, .28);
+  --shadow-glow: 0 0 24px rgba(98, 226, 191, .1);
+}
+
+:where(button, input, textarea, select, a) { -webkit-tap-highlight-color: transparent; }
+:where(button, input, textarea, select, a):focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+button, .btn, input, textarea, select { font-family: var(--font-body); }
+input, textarea, select {
+  border-color: var(--border-color);
+  border-radius: 9px;
+}
+input:focus, textarea:focus, select:focus {
+  border-color: var(--border-accent);
+  box-shadow: 0 0 0 3px var(--accent-muted);
+}
+.glass, .card, .card-elevated, .sidebar-card, .panel {
+  border-color: var(--border-color);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, .12);
+}
+.card:hover, .card-elevated:hover, .glass-hover:hover { border-color: var(--border-accent); }
+.page-title, .page-header h1, .section-title { letter-spacing: -.035em; }
+::selection { color: var(--on-accent); background: var(--accent); }
+
 /* ========================================
    LIGHT MODE
    ======================================== */
 
 .light-mode {
+  --on-accent: #ffffff;
+  --accent-gradient: linear-gradient(135deg, #007a64, #006a59);
+  --accent-gradient-hover: linear-gradient(135deg, #006a59, #005c4d);
+  --accent-muted: rgba(0, 127, 106, .08);
+  --bg-elevated: #ffffff;
+  --border-hover: #c2cbd5;
   --bg-primary: #f5f7fa;
   --bg-secondary: #ffffff;
   --bg-tertiary: #edf0f4;
@@ -972,16 +1034,16 @@ input:focus, textarea:focus, select:focus {
   --bg-card: #ffffff;
   --bg-input: #f0f2f5;
 
-  --accent: #00a88a;
+  --accent: #007a64;
   --accent-glow: rgba(0, 168, 138, 0.12);
-  --accent-hover: #00c9a4;
+  --accent-hover: #006a59;
   --accent-dim: #008a70;
 
   --text-primary: #1a202c;
   --text-secondary: #4a5568;
   --text-muted: #718096;
-  --text-link: #00a88a;
-  --text-link-hover: #00c9a4;
+  --text-link: #007a64;
+  --text-link-hover: #006a59;
 
   --border-color: #e2e8f0;
   --border-accent: rgba(0, 168, 138, 0.35);
@@ -1374,3 +1436,19 @@ html, body {
     max-width: 100% !important;
   }
 }
+
+/* Modal dialogs fill their existing overlay; the browser manages focus/inertness. */
+dialog[data-modal="overlay"] {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  max-height: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  color: inherit;
+}
+dialog[data-modal="overlay"]:not([open]) { display: none; }
+dialog[data-modal="overlay"]::backdrop { background: transparent; }

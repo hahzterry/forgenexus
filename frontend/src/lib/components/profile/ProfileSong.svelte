@@ -6,7 +6,7 @@
   }
 
   let { songUrl, songTitle, autoplay = false }: Props = $props();
-  let audio: HTMLAudioElement;
+  let audio = $state<HTMLAudioElement>();
   let playing = $state(false);
   let progress = $state(0);
 

@@ -1,4 +1,5 @@
 <script lang="ts">
+  const a11yId = $props.id();
   import { plugins } from '$lib/stores/plugins.svelte';
   import { goto } from '$app/navigation';
 
@@ -82,12 +83,12 @@ ForgeNexus.output({ message: "Hello from my plugin!" });
   <div class="form-section">
     <h2>Plugin Info</h2>
     <div class="field">
-      <label>Name</label>
-      <input type="text" bind:value={name} placeholder="My Plugin" />
+      <label for={`${a11yId}-field-1`}>Name</label>
+      <input id={`${a11yId}-field-1`} type="text" bind:value={name} placeholder="My Plugin" />
     </div>
     <div class="field">
-      <label>Description</label>
-      <textarea bind:value={description} rows="2" placeholder="What does this plugin do?"></textarea>
+      <label for={`${a11yId}-field-2`}>Description</label>
+      <textarea id={`${a11yId}-field-2`} bind:value={description} rows="2" placeholder="What does this plugin do?"></textarea>
     </div>
   </div>
 

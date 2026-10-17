@@ -1,4 +1,5 @@
 <script lang="ts">
+  const a11yId = $props.id();
   import { admin } from '$lib/stores/admin.svelte';
   let loading = $state(true);
   let showForm = $state(false);
@@ -38,9 +39,9 @@
   {#if showForm}
     <div class="form-box">
       <h3>{editing ? 'Edit' : 'New'} Group</h3>
-      <div class="fg"><div class="f"><label>Name</label><input type="text" bind:value={name} /></div>
-        <div class="f"><label>Description</label><input type="text" bind:value={description} /></div>
-        <div class="f"><label>Color</label><input type="color" bind:value={color} /></div>
+      <div class="fg"><div class="f"><label for={`${a11yId}-field-1`}>Name</label><input id={`${a11yId}-field-1`} type="text" bind:value={name} /></div>
+        <div class="f"><label for={`${a11yId}-field-2`}>Description</label><input id={`${a11yId}-field-2`} type="text" bind:value={description} /></div>
+        <div class="f"><label for={`${a11yId}-field-3`}>Color</label><input id={`${a11yId}-field-3`} type="color" bind:value={color} /></div>
         <label class="tog"><input type="checkbox" bind:checked={isStaff} /> Staff group</label></div>
       <h4>Permissions</h4>
       <div class="perm-grid">{#each permKeys as pk}<label class="perm"><input type="checkbox" checked={permissions[pk]} onchange={() => { permissions = { ...permissions, [pk]: !permissions[pk] }; }} /><span>{pk.replace(/_/g, ' ').replace('can ', '')}</span>
@@ -72,7 +73,7 @@
   .fg { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
   .f { display: flex; flex-direction: column; gap: 4px; }
   .f label { font-size: 11px; font-weight: 600; color: var(--text-secondary); }
-  input, select { padding: 6px 10px; border: 1px solid var(--border-color); border-radius: var(--radius); background: var(--bg-input); color: var(--text-primary); font-size: 12px; font-family: inherit; }
+  input { padding: 6px 10px; border: 1px solid var(--border-color); border-radius: var(--radius); background: var(--bg-input); color: var(--text-primary); font-size: 12px; font-family: inherit; }
   input:focus { outline: none; border-color: var(--accent); }
   input[type="color"] { height: 32px; cursor: pointer; }
   .tog { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-secondary); cursor: pointer; }

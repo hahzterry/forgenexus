@@ -1,10 +1,12 @@
 <script lang="ts">
+  const a11yId = $props.id();
   import { getChatTheme, setChatTheme, resetChatTheme, PRESET_THEMES, type ChatTheme } from '$lib/chat/themes';
 
   let { conversationId, recipientName, onClose, onThemeChange }:
     { conversationId: string; recipientName: string; onClose: () => void; onThemeChange: () => void } = $props();
 
-  let theme = $state<ChatTheme>(getChatTheme(conversationId));
+  let theme = $state<ChatTheme>(getChatTheme(''));
+  $effect(() => { theme = getChatTheme(conversationId); });
 
   function update(key: keyof ChatTheme, value: any) {
     (theme as any)[key] = value;
@@ -31,20 +33,20 @@
 <div class="chat-settings">
   <div class="settings-header">
     <span>Chat Settings</span>
-    <button class="close-btn" onclick={onClose}>✕</button>
+    <button aria-label="Close" class="close-btn" onclick={onClose}>✕</button>
   </div>
 
   <div class="settings-body">
     <!-- Nickname -->
     <div class="setting-group">
-      <label>Nickname for {recipientName}</label>
-      <input type="text" value={theme.nickname || ''} placeholder="None" oninput={(e) => update('nickname', (e.target as HTMLInputElement).value || null)} />
+      <label for={`${a11yId}-field-1`}>Nickname for {recipientName}</label>
+      <input id={`${a11yId}-field-1`} type="text" value={theme.nickname || ''} placeholder="None" oninput={(e) => update('nickname', (e.target as HTMLInputElement).value || null)} />
     </div>
 
     <!-- Theme presets -->
     <div class="setting-group">
-      <label>Theme</label>
-      <div class="preset-grid">
+      <span id={`${a11yId}-group-1`} class="control-label">Theme</span>
+      <div aria-labelledby={`${a11yId}-group-1`} role="group" class="preset-grid">
         {#each Object.entries(PRESET_THEMES) as [name, preset]}
           <button
             class="preset-chip"
@@ -59,29 +61,29 @@
 
     <!-- Custom accent color -->
     <div class="setting-group">
-      <label>Accent Color</label>
+      <label for={`${a11yId}-field-3`}>Accent Color</label>
       <div class="color-input-row">
-        <input type="color" value={theme.accentColor || '#00d4aa'} onchange={(e) => update('accentColor', (e.target as HTMLInputElement).value)} />
+        <input id={`${a11yId}-field-3`} type="color" value={theme.accentColor || '#00d4aa'} onchange={(e) => update('accentColor', (e.target as HTMLInputElement).value)} />
         <button class="reset-color" onclick={() => update('accentColor', '')}>Reset</button>
       </div>
     </div>
 
     <!-- Bubble style -->
     <div class="setting-group">
-      <label>Style</label>
-      <div class="style-row">
+      <span id={`${a11yId}-group-7`} class="control-label">Style</span>
+      <div aria-labelledby={`${a11yId}-group-7`} role="group" class="style-row">
         {#each ['classic', 'bubble', 'minimal'] as style}
-          <button class="style-btn" class:active={theme.bubbleStyle === style} onclick={() => update('bubbleStyle', style)}>{style}</button>
+          <button aria-pressed={theme.bubbleStyle === style} class="style-btn" class:active={theme.bubbleStyle === style} onclick={() => update('bubbleStyle', style)}>{style}</button>
         {/each}
       </div>
     </div>
 
     <!-- Font size -->
     <div class="setting-group">
-      <label>Font Size</label>
-      <div class="style-row">
+      <span id={`${a11yId}-group-14`} class="control-label">Font Size</span>
+      <div aria-labelledby={`${a11yId}-group-14`} role="group" class="style-row">
         {#each ['small', 'normal', 'large'] as size}
-          <button class="style-btn" class:active={theme.fontSize === size} onclick={() => update('fontSize', size)}>{size}</button>
+          <button aria-pressed={theme.fontSize === size} class="style-btn" class:active={theme.fontSize === size} onclick={() => update('fontSize', size)}>{size}</button>
         {/each}
       </div>
     </div>
@@ -111,7 +113,7 @@
   .close-btn { background: none; border: none; color: var(--text-muted); cursor: pointer; }
   .settings-body { padding: 8px 10px; display: flex; flex-direction: column; gap: 10px; }
   .setting-group { display: flex; flex-direction: column; gap: 4px; }
-  .setting-group > label { font-size: 10px; font-weight: 700; text-transform: uppercase; color: var(--text-muted); letter-spacing: 0.05em; }
+  .setting-group > :is(label, .control-label) { font-size: 10px; font-weight: 700; text-transform: uppercase; color: var(--text-muted); letter-spacing: 0.05em; }
   .setting-group input[type="text"] { padding: 4px 6px; font-size: 12px; background: var(--bg-input); border: 1px solid var(--border-color); border-radius: 4px; color: var(--text-primary); }
   .preset-grid { display: flex; flex-wrap: wrap; gap: 3px; }
   .preset-chip { padding: 2px 8px; font-size: 10px; font-weight: 600; border: 1px solid; border-radius: 10px; cursor: pointer; text-transform: capitalize; }

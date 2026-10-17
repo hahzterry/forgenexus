@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { modal } from '$lib/actions/modal';
   import { api } from '$lib/api/client';
 
   interface Achievement {
@@ -427,8 +428,8 @@
   {/if}
 
   {#if grantingAchievement}
-    <div class="modal-backdrop" onclick={() => { grantingAchievement = null; }} role="presentation">
-      <div class="modal modal-wide" onclick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
+    <dialog class="modal-backdrop" data-modal="overlay" use:modal={() => { grantingAchievement = null; }} >
+      <div class="modal modal-wide"   aria-modal="true">
         <h3>Grant / Revoke: {grantingAchievement.name}</h3>
 
         <div class="grant-tabs">
@@ -488,7 +489,7 @@
           {/if}
         {/if}
       </div>
-    </div>
+    </dialog>
   {/if}
 
   {#if loading}

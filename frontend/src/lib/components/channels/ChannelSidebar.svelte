@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { modal } from '$lib/actions/modal';
   import { channelStore, type ChannelCategory, type Channel } from '$lib/stores/channels.svelte';
   import { voiceStore } from '$lib/stores/voice.svelte';
   import { auth } from '$lib/stores/auth.svelte';
@@ -164,8 +165,8 @@
 </aside>
 
 {#if createType}
-  <div class="qc-backdrop" onclick={cancelCreate} role="presentation">
-    <div class="qc-modal" onclick={(e) => e.stopPropagation()} role="dialog">
+  <dialog class="qc-backdrop" data-modal="overlay" use:modal={cancelCreate} >
+    <div class="qc-modal"  >
       <h3>{createType === 'category' ? 'New Category' : 'New Channel'}</h3>
       <label>
         Name
@@ -194,7 +195,7 @@
         </button>
       </div>
     </div>
-  </div>
+  </dialog>
 {/if}
 
 <style>

@@ -345,7 +345,6 @@
 
   .card-head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; font-size: 11px; color: var(--text-muted); font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; }
   .type-emoji { font-size: 16px; }
-  .type-label { }
   .live-badge { margin-left: auto; display: inline-flex; align-items: center; gap: 4px; color: #f87171; background: rgba(248,113,113,0.1); padding: 2px 8px; border-radius: 10px; font-size: 10px; letter-spacing: 0.08em; }
   .live-dot { width: 6px; height: 6px; border-radius: 50%; background: #f87171; animation: pulse 1.6s ease-out infinite; }
 

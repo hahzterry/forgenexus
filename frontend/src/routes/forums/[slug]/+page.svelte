@@ -1,9 +1,11 @@
 <script lang="ts">
+  import { modal } from '$lib/actions/modal';
   import { page } from '$app/stores';
   import { api } from '$lib/api/client';
   import Breadcrumb from '$lib/components/layout/Breadcrumb.svelte';
   import { auth } from '$lib/stores/auth.svelte';
   import { toast } from '$lib/stores/toast.svelte';
+  import ForumPostingRules from '$lib/components/forum/ForumPostingRules.svelte';
 
   let forum = $state<any>(null);
   let threads = $state<any[]>([]);
@@ -33,6 +35,9 @@
   let availablePrefixes = $derived(
     [...new Set(threads.map(t => t.prefix).filter(Boolean))]
   );
+
+  let pinnedThreads = $derived(threads.filter(t => t.is_pinned));
+  let normalThreads = $derived(threads.filter(t => !t.is_pinned));
 
   $effect(() => {
     const slug = $page.params.slug;
@@ -67,6 +72,14 @@
         try {
           const ignoreData = await api.getIgnores();
           isMuted = (ignoreData.ignores || []).some((i: any) => i.forum?.id === forum.id);
+        } catch { /* ignore */ }
+      }
+      // Populate allForums for quick forum jump
+      if (allForums.length === 0) {
+        try {
+          const forumData = await api.getForums();
+          const cats = forumData.categories || [];
+          allForums = cats.flatMap((c: any) => c.forums || []);
         } catch { /* ignore */ }
       }
     } catch (err: any) {
@@ -346,91 +359,152 @@
         </div>
       {/if}
 
+      {#snippet threadRow(thread: any)}
+        <tr class="forum-table-row" class:unread={thread.has_unread}>
+          {#if modToolsActive}
+            <td class="mod-check-cell">
+              <input type="checkbox" checked={selectedThreadIds.has(thread.id)} onchange={() => toggleThreadSelection(thread.id)} />
+            </td>
+          {/if}
+          <td>
+            <div class="thread-info">
+              {#if thread.has_unread}
+                <span class="unread-dot" title="New posts"></span>
+              {/if}
+              {#if thread.is_pinned}
+                <span class="pin-badge" title="Pinned Announcement / Sticky">&#128204;</span>
+              {:else if thread.reply_count >= 25}
+                <span class="hot-badge" title="Hot Topic (25+ replies)">&#128293;</span>
+              {/if}
+              {#if thread.is_locked}
+                <span class="lock-badge" title="Locked">&#128274;</span>
+              {/if}
+              {#if thread.thumbnail_url}
+                <img class="thread-thumbnail" src={thread.thumbnail_url} alt="" loading="lazy" />
+              {/if}
+              <div class="thread-detail">
+                <div class="thread-title-row">
+                  <button class="preview-toggle" class:preview-open={previewThreadId === thread.id} onclick={(e) => { e.preventDefault(); togglePreview(thread); }} title="Preview first post">&#9660;</button>
+                  <a href="/threads/{thread.slug}" class="thread-title" class:thread-unread={thread.has_unread} title={thread.excerpt ? thread.excerpt.slice(0, 150) : undefined}>{thread.title}</a>
+                  {#if thread.new_post_count > 0}
+                    <span class="new-post-badge">+{thread.new_post_count} new</span>
+                  {/if}
+                  {#if thread.reply_count > 24}
+                    <span class="thread-pages">
+                      {#each threadPageLinks(thread.reply_count) as pg}
+                        {#if pg === '...'}
+                          <span class="tp-ellipsis">...</span>
+                        {:else}
+                          <a href="/threads/{thread.slug}?page={pg}" class="tp-link">{pg}</a>
+                        {/if}
+                      {/each}
+                    </span>
+                  {/if}
+                </div>
+                <div class="thread-meta">
+                  by <a href="/profile/{thread.user.slug}" class="thread-author">{thread.user.username}</a>
+                  &middot; {timeAgo(thread.inserted_at)}
+                  {#if thread.tags?.length > 0}
+                    {#each thread.tags as tag}
+                      <span class="tag">{tag}</span>
+                    {/each}
+                  {/if}
+                </div>
+                {#if previewThreadId === thread.id}
+                  <div class="thread-preview">
+                    {#if previewLoading}
+                      <div class="preview-loading">Loading preview...</div>
+                    {:else}
+                      <div class="preview-content">{@html previewContent}</div>
+                    {/if}
+                  </div>
+                {/if}
+              </div>
+            </div>
+          </td>
+          <td class="stat-cell">
+            <div class="count">{thread.reply_count}</div>
+          </td>
+          <td class="stat-cell">
+            <div class="count">{thread.view_count}</div>
+          </td>
+          <td class="lastpost-cell">
+            <span class="post-time">{timeAgo(thread.last_post_at)}</span>
+          </td>
+        </tr>
+      {/snippet}
+
       <table class="forum-table">
         <thead>
           <tr class="forum-table-header">
             {#if modToolsActive}<th style="width: 32px"></th>{/if}
-            <th style="width: 55%">Thread</th>
+            <th style="width: 55%">Topic</th>
             <th class="stat-col">Replies</th>
             <th class="stat-col">Views</th>
             <th>Last Post</th>
           </tr>
         </thead>
         <tbody>
-          {#each threads as thread (thread.id)}
-            <tr class="forum-table-row" class:unread={thread.has_unread}>
-              {#if modToolsActive}
-                <td class="mod-check-cell">
-                  <input type="checkbox" checked={selectedThreadIds.has(thread.id)} onchange={() => toggleThreadSelection(thread.id)} />
-                </td>
-              {/if}
-              <td>
-                <div class="thread-info">
-                  {#if thread.has_unread}
-                    <span class="unread-dot" title="New posts"></span>
-                  {/if}
-                  {#if thread.is_pinned}
-                    <span class="pin-badge" title="Pinned">&#128204;</span>
-                  {/if}
-                  {#if thread.is_locked}
-                    <span class="lock-badge" title="Locked">&#128274;</span>
-                  {/if}
-                  {#if thread.thumbnail_url}
-                    <img class="thread-thumbnail" src={thread.thumbnail_url} alt="" loading="lazy" />
-                  {/if}
-                  <div class="thread-detail">
-                    <div class="thread-title-row">
-                      <button class="preview-toggle" class:preview-open={previewThreadId === thread.id} onclick={(e) => { e.preventDefault(); togglePreview(thread); }} title="Preview first post">&#9660;</button>
-                      <a href="/threads/{thread.slug}" class="thread-title" class:thread-unread={thread.has_unread} title={thread.excerpt ? thread.excerpt.slice(0, 150) : undefined}>{thread.title}</a>
-                      {#if thread.new_post_count > 0}
-                        <span class="new-post-badge">+{thread.new_post_count} new</span>
-                      {/if}
-                      {#if thread.reply_count > 24}
-                        <span class="thread-pages">
-                          {#each threadPageLinks(thread.reply_count) as pg}
-                            {#if pg === '...'}
-                              <span class="tp-ellipsis">...</span>
-                            {:else}
-                              <a href="/threads/{thread.slug}?page={pg}" class="tp-link">{pg}</a>
-                            {/if}
-                          {/each}
-                        </span>
-                      {/if}
-                    </div>
-                    <div class="thread-meta">
-                      by <a href="/profile/{thread.user.slug}" class="thread-author">{thread.user.username}</a>
-                      &middot; {timeAgo(thread.inserted_at)}
-                      {#if thread.tags?.length > 0}
-                        {#each thread.tags as tag}
-                          <span class="tag">{tag}</span>
-                        {/each}
-                      {/if}
-                    </div>
-                    {#if previewThreadId === thread.id}
-                      <div class="thread-preview">
-                        {#if previewLoading}
-                          <div class="preview-loading">Loading preview...</div>
-                        {:else}
-                          <div class="preview-content">{@html previewContent}</div>
-                        {/if}
-                      </div>
-                    {/if}
-                  </div>
-                </div>
-              </td>
-              <td class="stat-cell">
-                <div class="count">{thread.reply_count}</div>
-              </td>
-              <td class="stat-cell">
-                <div class="count">{thread.view_count}</div>
-              </td>
-              <td class="lastpost-cell">
-                <span class="post-time">{timeAgo(thread.last_post_at)}</span>
+          {#if pinnedThreads.length > 0}
+            <tr class="section-divider-row">
+              <td colspan={modToolsActive ? 5 : 4} class="section-divider-cell">
+                <span class="divider-icon">&#128204;</span> Announcements &amp; Sticky Topics
               </td>
             </tr>
-          {/each}
+            {#each pinnedThreads as thread (thread.id)}
+              {@render threadRow(thread)}
+            {/each}
+          {/if}
+
+          {#if normalThreads.length > 0}
+            {#if pinnedThreads.length > 0}
+              <tr class="section-divider-row">
+                <td colspan={modToolsActive ? 5 : 4} class="section-divider-cell">
+                  <span class="divider-icon">&#128172;</span> Forum Topics
+                </td>
+              </tr>
+            {/if}
+            {#each normalThreads as thread (thread.id)}
+              {@render threadRow(thread)}
+            {/each}
+          {/if}
         </tbody>
       </table>
+
+      <!-- Topic Icons Legend & Quick Forum Jump (phpBB/vBulletin style) -->
+      <div class="forum-footer-bar">
+        <div class="topic-legend">
+          <span class="legend-item"><span class="unread-dot-sm"></span> New posts</span>
+          <span class="legend-item">&#128204; Sticky</span>
+          <span class="legend-item">&#128293; Hot (25+ replies)</span>
+          <span class="legend-item">&#128274; Locked</span>
+        </div>
+        {#if allForums.length > 0}
+          <div class="forum-jump">
+            <label for="forum-jump-select" class="jump-label">Forum Jump:</label>
+            <select id="forum-jump-select" class="toolbar-select jump-select" onchange={(e) => {
+              const val = (e.target as HTMLSelectElement).value;
+              if (val) window.location.href = `/forums/${val}`;
+            }}>
+              <option value="">-- Jump to a Forum --</option>
+              {#each allForums as f}
+                <option value={f.slug} selected={f.id === forum?.id}>{f.name}</option>
+              {/each}
+            </select>
+          </div>
+        {/if}
+      </div>
+
+      <!-- Classic Posting Rules Box (phpBB/vBulletin style - Feature 3) -->
+      <div class="forum-posting-rules-wrap">
+        <ForumPostingRules
+          canPostThread={!forum?.is_locked}
+          canReply={true}
+          canAttach={true}
+          canEdit={true}
+          isLocked={forum?.is_locked}
+        />
+      </div>
 
       <!-- Bulk action floating bar -->
       {#if modToolsActive && selectedThreadIds.size > 0}
@@ -445,10 +519,8 @@
 
       <!-- Move dialog -->
       {#if showMoveDialog}
-        <!-- svelte-ignore a11y-click-events-have-key-events -->
-        <div class="modal-overlay" onclick={() => showMoveDialog = false} role="dialog" tabindex="-1">
-          <!-- svelte-ignore a11y-click-events-have-key-events -->
-          <div class="modal-content" onclick={(e) => e.stopPropagation()} role="document" tabindex="-1">
+        <dialog class="modal-overlay" data-modal="overlay" use:modal={() => showMoveDialog = false}  >
+          <div class="modal-content"   >
             <h3>Move {selectedThreadIds.size} thread(s) to:</h3>
             <select class="toolbar-select" bind:value={moveTargetForumId} style="width: 100%; margin: 12px 0;">
               <option value="">Select a forum...</option>
@@ -465,7 +537,7 @@
               </button>
             </div>
           </div>
-        </div>
+        </dialog>
       {/if}
     {/if}
   {/if}
@@ -900,15 +972,10 @@
 
   /* === Mobile === */
   @media (max-width: 768px) {
-    .forum-header { flex-direction: column; align-items: stretch; gap: 8px; padding: 10px 0; }
-    .forum-info { align-items: flex-start; gap: 8px; }
-    .forum-icon { font-size: 18px; }
     .forum-title { font-size: 16px; line-height: 1.25; }
     .forum-desc { font-size: 12px; }
     .forum-actions { flex-wrap: wrap; gap: 6px; }
     .forum-actions :global(button), .forum-actions :global(a) { min-height: 40px; font-size: 12px; padding: 6px 10px; }
-    .breadcrumb { font-size: 11px; flex-wrap: wrap; gap: 4px; }
-    .subforum-grid { grid-template-columns: 1fr !important; gap: 6px; }
     .subforum-card { padding: 10px; }
     .subforum-name { font-size: 13px; }
     .subforum-desc { font-size: 11px; }
@@ -917,5 +984,79 @@
   @media (max-width: 480px) {
     .forum-title { font-size: 15px; }
     .forum-desc { font-size: 11px; }
+  }
+
+  /* === phpBB/vBulletin Classic Section Dividers & Hot Topics === */
+  .section-divider-row {
+    background: var(--bg-tertiary);
+  }
+  .section-divider-cell {
+    padding: 7px 12px;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-muted);
+    border-bottom: 1px solid var(--border-color);
+  }
+  .divider-icon {
+    margin-right: 5px;
+  }
+  .hot-badge {
+    font-size: 13px;
+    margin-top: 2px;
+  }
+
+  /* === Forum Footer Legend & Jump Bar === */
+  .forum-footer-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+    padding: 12px 14px;
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius);
+    margin-top: 8px;
+  }
+  .topic-legend {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    flex-wrap: wrap;
+    font-size: 12px;
+    color: var(--text-muted);
+  }
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+  .unread-dot-sm {
+    display: inline-block;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 4px var(--accent);
+  }
+  .forum-jump {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-left: auto;
+  }
+  .jump-label {
+    font-size: 12px;
+    color: var(--text-muted);
+    font-weight: 600;
+  }
+  .jump-select {
+    max-width: 220px;
+  }
+  .forum-posting-rules-wrap {
+    margin-top: 10px;
+    max-width: 520px;
   }
 </style>

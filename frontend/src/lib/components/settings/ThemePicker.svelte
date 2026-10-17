@@ -1,4 +1,5 @@
 <script lang="ts">
+  const a11yId = $props.id();
   import { themeStore } from '$lib/stores/theme.svelte';
 
   let {
@@ -14,10 +15,10 @@
 </script>
 
 <div class="theme-picker">
-  <label class="picker-label">Site Theme</label>
-  <div class="theme-grid">
+  <span id={`${a11yId}-group-1`} class="picker-label">Site Theme</span>
+  <div aria-labelledby={`${a11yId}-group-1`} role="group" class="theme-grid">
     <!-- Default / None -->
-    <button
+    <button aria-pressed={!value}
       type="button"
       class="theme-card"
       class:active={!value}
@@ -33,7 +34,7 @@
     </button>
 
     {#each themeStore.themes as theme}
-      <button
+      <button aria-pressed={value === theme.id}
         type="button"
         class="theme-card"
         class:active={value === theme.id}

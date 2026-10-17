@@ -1,19 +1,23 @@
 <script lang="ts">
-  let { username, slug, avatarUrl, postCount = 0, reputation = 0, customTitle, isOnline = false }: {
-    username: string; slug: string; avatarUrl?: string | null;
+  import { onDestroy, type Snippet } from 'svelte';
+  let wrapper = $state<HTMLSpanElement>();
+  let { children, username, slug, avatarUrl, postCount = 0, reputation = 0, customTitle, isOnline = false }: {
+    children: Snippet; username: string; slug: string; avatarUrl?: string | null;
     postCount?: number; reputation?: number; customTitle?: string | null; isOnline?: boolean;
   } = $props();
 
   let show = $state(false);
   let timeout: ReturnType<typeof setTimeout>;
 
-  function enter() { timeout = setTimeout(() => show = true, 400); }
-  function leave() { clearTimeout(timeout); show = false; }
+  function enter() { clearTimeout(timeout); timeout = setTimeout(() => show = true, 400); }
+  function leave() { clearTimeout(timeout); if (!wrapper?.contains(document.activeElement)) show = false; }
+  onDestroy(() => clearTimeout(timeout));
 </script>
 
-<!-- svelte-ignore a11y-no-static-element-interactions -->
-<span class="hover-card-wrapper" onmouseenter={enter} onmouseleave={leave}>
-  <slot />
+<svelte:window onkeydown={(event) => { if (event.key === 'Escape' && show) { clearTimeout(timeout); wrapper?.querySelector('a')?.focus(); show = false; } }} />
+
+<span bind:this={wrapper} role="group" aria-label={`${username} profile preview`} onfocusin={() => { clearTimeout(timeout); show = true; }} onfocusout={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) { clearTimeout(timeout); show = false; } }} class="hover-card-wrapper" onmouseenter={enter} onmouseleave={leave}>
+  {@render children()}
 
   {#if show}
     <div class="hover-card">

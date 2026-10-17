@@ -1,4 +1,5 @@
 <script lang="ts">
+  const a11yId = $props.id();
   let {
     label = 'Color',
     value = $bindable(''),
@@ -26,15 +27,15 @@
 </script>
 
 <div class="color-picker">
-  <label class="color-label">{label}</label>
+  <label for={`${a11yId}-group-1`} class="color-label">{label}</label>
   <div class="color-inputs">
-    <input
+    <input id={`${a11yId}-group-1`}
       type="color"
       value={value || '#000000'}
       oninput={handleColorInput}
       class="color-swatch"
     />
-    <input
+    <input aria-label={`${label} hexadecimal value`}
       type="text"
       {value}
       oninput={handleTextInput}

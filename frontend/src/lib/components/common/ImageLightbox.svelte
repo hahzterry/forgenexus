@@ -1,28 +1,21 @@
 <script lang="ts">
+  import { modal } from '$lib/actions/modal';
   let { src = '', alt = '' }: { src: string; alt?: string } = $props();
   let open = $state(false);
 </script>
-
-<!-- svelte-ignore a11y-click-events-have-key-events -->
-<img
-  {src}
-  {alt}
-  class="lightbox-thumb"
-  onclick={() => open = true}
-  loading="lazy"
-  role="button"
-  tabindex="0"
-/>
+<button type="button" class="lightbox-trigger" aria-label={alt ? `Enlarge ${alt}` : 'Enlarge image'} onclick={() => open = true}>
+  <img {src} {alt} class="lightbox-thumb" loading="lazy" />
+</button>
 
 {#if open}
-  <!-- svelte-ignore a11y-click-events-have-key-events -->
-  <div class="lightbox-overlay" onclick={() => open = false} role="dialog" tabindex="-1">
-    <button class="lightbox-close" onclick={() => open = false}>&times;</button>
+  <dialog aria-label={alt || 'Image preview'} class="lightbox-overlay" data-modal="overlay" use:modal={() => open = false}  >
+    <button class="lightbox-close" aria-label="Close image preview" onclick={() => open = false}>&times;</button>
     <img {src} {alt} class="lightbox-full" />
-  </div>
+  </dialog>
 {/if}
 
 <style>
+  .lightbox-trigger { display: inline-block; padding: 0; border: 0; background: none; max-width: 100%; cursor: zoom-in; }
   .lightbox-thumb { cursor: zoom-in; max-width: 100%; height: auto; border-radius: var(--radius); }
   .lightbox-overlay {
     position: fixed; inset: 0; z-index: 1000;

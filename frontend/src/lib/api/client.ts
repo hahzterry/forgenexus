@@ -952,7 +952,21 @@ class ApiClient {
 
   // === Welcome Center Stats ===
 
-  getWelcomeStats() { return this.request('/stats/welcome'); }
+  async getWelcomeStats() {
+    const response = await this.request('/stats/welcome');
+    // The API nests community totals under welcome.stats. Keep one shape for
+    // the homepage, forum index, and Welcome Center.
+    const welcome = response.welcome ?? response;
+    return {
+      ...welcome,
+      ...welcome.stats,
+      recent_threads: (welcome.recent_threads ?? []).map((thread: any) => ({
+        ...thread,
+        author: thread.author ?? thread.user,
+        last_post_at: thread.last_post_at ?? thread.inserted_at
+      }))
+    };
+  }
 
   // === Forum Statistics ===
 

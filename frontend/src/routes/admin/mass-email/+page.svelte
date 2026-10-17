@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { modal } from '$lib/actions/modal';
   import { api } from "$lib/api/client";
   import { toast } from "$lib/stores/toast.svelte";
 
@@ -108,8 +109,8 @@
 </div>
 
 {#if showConfirm}
-  <div class="modal-overlay" onclick={() => (showConfirm = false)} role="presentation">
-    <div class="modal" onclick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
+  <dialog class="modal-overlay" data-modal="overlay" use:modal={() => (showConfirm = false)} >
+    <div class="modal"   aria-modal="true">
       <h3>Confirm Mass Email</h3>
       <p>Are you sure you want to send this email?</p>
       <div class="confirm-details">
@@ -123,7 +124,7 @@
         <button class="btn btn-danger" onclick={send}>Yes, Send to All</button>
       </div>
     </div>
-  </div>
+  </dialog>
 {/if}
 
 <style>

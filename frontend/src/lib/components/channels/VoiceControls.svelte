@@ -3,7 +3,7 @@
   import { auth } from '$lib/stores/auth.svelte';
   import WatchPartyPlayer from '$lib/components/channels/WatchPartyPlayer.svelte';
 
-  let videoContainer: HTMLDivElement;
+  let videoContainer = $state<HTMLDivElement>();
   let selfHandRaised = $state(false);
 
   async function toggleHand() {

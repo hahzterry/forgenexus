@@ -1,7 +1,10 @@
 defmodule ForgeNexusWeb.StatsController do
   use ForgeNexusWeb, :controller
 
+  import Ecto.Query, only: [from: 2]
+
   alias ForgeNexus.{Accounts, Forums, Settings, StatsCache}
+  alias ForgeNexus.Repo.Read
 
   # GET /api/stats/cached — instant precomputed stats from ETS (for widgets, homepage)
   def cached(conn, _params) do
@@ -219,8 +222,22 @@ defmodule ForgeNexusWeb.StatsController do
     %{
       total_members: Accounts.count_users(),
       total_threads: Forums.count_threads(),
-      total_posts: Forums.count_posts()
+      total_posts: Forums.count_posts(),
+      new_members_today: count_today(ForgeNexus.Accounts.User),
+      threads_today: count_today(from(t in ForgeNexus.Forums.Thread, where: not t.is_hidden)),
+      posts_today: count_today(from(p in ForgeNexus.Forums.Post, where: not p.is_hidden))
     }
+  end
+
+  defp count_today(queryable) do
+    start_of_day = Date.utc_today() |> DateTime.new!(~T[00:00:00])
+    end_of_day = DateTime.add(start_of_day, 86_400)
+
+    Read.one(
+      from record in queryable,
+        where: record.inserted_at >= ^start_of_day and record.inserted_at < ^end_of_day,
+        select: count(record.id)
+    ) || 0
   end
 
   defp newest_member_json do
@@ -246,6 +263,7 @@ defmodule ForgeNexusWeb.StatsController do
         id: thread.id,
         title: thread.title,
         slug: thread.slug,
+        reply_count: thread.reply_count,
         last_post_at: thread.last_post_at,
         inserted_at: thread.inserted_at,
         user: %{

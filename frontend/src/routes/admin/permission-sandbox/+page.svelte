@@ -1,4 +1,5 @@
 <script lang="ts">
+  const a11yId = $props.id();
   import { api } from '$lib/api/client';
 
   interface Group {
@@ -117,8 +118,8 @@
   <p class="subtitle">Preview what users in a specific group can see and do.</p>
 
   <div class="group-selector">
-    <label>Select Group:</label>
-    <select bind:value={selectedGroupId}>
+    <label for={`${a11yId}-field-1`}>Select Group:</label>
+    <select id={`${a11yId}-field-1`} bind:value={selectedGroupId}>
       <option value="">Choose a group...</option>
       {#each groups as g}
         <option value={g.id}>{g.name}{g.is_staff ? ' (Staff)' : ''}{g.is_default ? ' (Default)' : ''}</option>

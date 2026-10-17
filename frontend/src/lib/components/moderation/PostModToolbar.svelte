@@ -14,7 +14,7 @@
     onUpdate?: () => void;
   } = $props();
 
-  let hidden = $state(isHidden);
+  let hidden = $derived(isHidden);
 
   async function toggleHide() {
     if (hidden) {

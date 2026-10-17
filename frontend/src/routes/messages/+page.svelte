@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { modal } from '$lib/actions/modal';
   import { api } from '$lib/api/client';
   import { auth } from '$lib/stores/auth.svelte';
   import { soundStore } from '$lib/stores/sounds.svelte';
@@ -29,7 +30,7 @@
   let loading = $state(true);
   let loadingMessages = $state(false);
   let messageInput = $state('');
-  let messagesEl: HTMLDivElement;
+  let messagesEl = $state<HTMLDivElement>();
 
   // New message modal with typeahead multi-select
   interface RecipientHit { id: string; username: string; slug: string; avatar_url: string | null; }
@@ -324,11 +325,11 @@
 
   <!-- New Message Modal -->
   {#if showNewMessage}
-    <div class="modal-overlay" role="button" tabindex="-1" onclick={() => showNewMessage = false} onkeydown={() => {}}>
-      <div class="modal" role="dialog" onclick={(e) => e.stopPropagation()} onkeydown={() => {}}>
+    <dialog class="modal-overlay"   data-modal="overlay" use:modal={() => showNewMessage = false} >
+      <div class="modal"   >
         <div class="modal-header">
           <h3>New Message</h3>
-          <button class="modal-close" onclick={() => showNewMessage = false}>&times;</button>
+          <button aria-label="Close" class="modal-close" onclick={() => showNewMessage = false}>&times;</button>
         </div>
         <div class="modal-body">
           <label>
@@ -384,7 +385,7 @@
           </button>
         </div>
       </div>
-    </div>
+    </dialog>
   {/if}
 </div>
 

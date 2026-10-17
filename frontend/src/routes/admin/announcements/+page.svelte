@@ -1,4 +1,5 @@
 <script lang="ts">
+  const a11yId = $props.id();
   import { admin } from '$lib/stores/admin.svelte';
   let loading = $state(true);
   let showForm = $state(false);
@@ -26,13 +27,13 @@
 <div class="page">
   <div class="hdr"><h1>Announcements</h1><button class="btn bp" onclick={() => openForm()}>New Announcement</button></div>
   {#if showForm}<div class="form-box"><h3>{editing ? 'Edit' : 'New'} Announcement</h3>
-    <div class="f"><label>Title</label><input type="text" bind:value={title} /></div>
-    <div class="f"><label>Body</label><textarea bind:value={body} rows="4"></textarea></div>
+    <div class="f"><label for={`${a11yId}-field-1`}>Title</label><input id={`${a11yId}-field-1`} type="text" bind:value={title} /></div>
+    <div class="f"><label for={`${a11yId}-field-2`}>Body</label><textarea id={`${a11yId}-field-2`} bind:value={body} rows="4"></textarea></div>
     <div class="fg">
-      <div class="f"><label>Location</label><select bind:value={location}><option value="banner">Banner</option><option value="forum">Forum-specific</option><option value="all">All pages</option></select></div>
-      <div class="f"><label>Priority</label><input type="number" bind:value={priority} /></div>
-      <div class="f"><label>Starts</label><input type="datetime-local" bind:value={startsAt} /></div>
-      <div class="f"><label>Ends</label><input type="datetime-local" bind:value={endsAt} /></div>
+      <div class="f"><label for={`${a11yId}-field-3`}>Location</label><select id={`${a11yId}-field-3`} bind:value={location}><option value="banner">Banner</option><option value="forum">Forum-specific</option><option value="all">All pages</option></select></div>
+      <div class="f"><label for={`${a11yId}-field-4`}>Priority</label><input id={`${a11yId}-field-4`} type="number" bind:value={priority} /></div>
+      <div class="f"><label for={`${a11yId}-field-5`}>Starts</label><input id={`${a11yId}-field-5`} type="datetime-local" bind:value={startsAt} /></div>
+      <div class="f"><label for={`${a11yId}-field-6`}>Ends</label><input id={`${a11yId}-field-6`} type="datetime-local" bind:value={endsAt} /></div>
     </div>
     <div class="checks"><label class="tog"><input type="checkbox" bind:checked={isDismissible} /> Dismissible</label>
       <label class="tog"><input type="checkbox" bind:checked={isActive} /> Active</label></div>

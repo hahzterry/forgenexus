@@ -27,7 +27,7 @@
   let logoPreview = $state('');
   let logoUploading = $state(false);
   let logoError = $state('');
-  let fileInput: HTMLInputElement;
+  let fileInput = $state<HTMLInputElement>();
 
   // --- Step 3: Admin Account ---
   let username = $state('');

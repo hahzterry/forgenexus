@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { modal } from '$lib/actions/modal';
   import { onMount } from 'svelte';
   import { api } from '$lib/api/client';
   import { auth } from '$lib/stores/auth.svelte';
@@ -220,8 +221,8 @@
 
 <!-- Save-as dialog -->
 {#if showSaveAs}
-  <div class="modal-backdrop" onclick={() => (showSaveAs = false)} role="presentation">
-    <div class="modal" onclick={(e) => e.stopPropagation()} role="dialog" aria-label="Save profile as Forge Code">
+  <dialog class="modal-backdrop" data-modal="overlay" use:modal={() => (showSaveAs = false)} >
+    <div class="modal"   aria-label="Save profile as Forge Code">
       <h2>Save Profile as a Forge Code</h2>
       <label>
         Name
@@ -252,7 +253,7 @@
         </button>
       </div>
     </div>
-  </div>
+  </dialog>
 {/if}
 
 <style>

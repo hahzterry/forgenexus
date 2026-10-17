@@ -6,7 +6,7 @@
   const DRIFT_SECONDS = 2.0;
 
   let ytPlayer: any = null;
-  let ytContainer: HTMLDivElement | null = null;
+  let ytContainer = $state<HTMLDivElement | null>(null);
   let ytReady = $state(false);
   let urlInput = $state('');
   let lastAppliedUpdate: string | null = null;

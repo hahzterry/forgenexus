@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { modal } from '$lib/actions/modal';
+  const a11yId = $props.id();
   import { api } from '$lib/api/client';
 
   interface SubscriptionTier {
@@ -203,61 +205,59 @@
 
 <!-- Create/Edit Modal -->
 {#if showCreate}
-  <div class="modal-overlay" onclick={() => showCreate = false}>
-    <!-- svelte-ignore a11y_click_events_have_key_events -->
-    <!-- svelte-ignore a11y_no_static_element_interactions -->
-    <div class="modal" onclick={(e) => e.stopPropagation()}>
+  <dialog class="modal-overlay" data-modal="overlay" use:modal={() => showCreate = false}>
+    <div class="modal" >
       <h2>{editing ? 'Edit' : 'Create'} Subscription Tier</h2>
 
       <div class="form-grid">
         <div class="form-group">
-          <label>Tier Name</label>
-          <input type="text" bind:value={form.name} oninput={autoSlug} placeholder="e.g. Ember" />
+          <label for={`${a11yId}-field-1`}>Tier Name</label>
+          <input id={`${a11yId}-field-1`} type="text" bind:value={form.name} oninput={autoSlug} placeholder="e.g. Ember" />
           <span class="form-hint">This is what your community sees. Change it to anything you like.</span>
         </div>
 
         <div class="form-group">
-          <label>Slug</label>
-          <input type="text" bind:value={form.slug} placeholder="e.g. ember" />
+          <label for={`${a11yId}-field-2`}>Slug</label>
+          <input id={`${a11yId}-field-2`} type="text" bind:value={form.slug} placeholder="e.g. ember" />
         </div>
 
         <div class="form-group">
-          <label>Tier Level</label>
-          <input type="number" bind:value={form.tier_level} min="1" max="10" />
+          <label for={`${a11yId}-field-3`}>Tier Level</label>
+          <input id={`${a11yId}-field-3`} type="number" bind:value={form.tier_level} min="1" max="10" />
           <span class="form-hint">Higher = more premium. Determines hierarchy.</span>
         </div>
 
         <div class="form-group">
-          <label>Badge Text</label>
-          <input type="text" bind:value={form.badge_text} placeholder="e.g. EMBER" />
+          <label for={`${a11yId}-field-4`}>Badge Text</label>
+          <input id={`${a11yId}-field-4`} type="text" bind:value={form.badge_text} placeholder="e.g. EMBER" />
         </div>
 
         <div class="form-group">
-          <label>Color</label>
+          <label for={`${a11yId}-group-1`}>Color</label>
           <div class="color-input-row">
-            <input type="color" bind:value={form.color} />
-            <input type="text" bind:value={form.color} placeholder="#ff6b35" />
+            <input id={`${a11yId}-group-1`} type="color" bind:value={form.color} />
+            <input aria-label="Color hexadecimal value" type="text" bind:value={form.color} placeholder="#ff6b35" />
           </div>
         </div>
 
         <div class="form-group">
-          <label>Icon (emoji)</label>
-          <input type="text" bind:value={form.icon} placeholder="e.g. &#128293;" />
+          <label for={`${a11yId}-field-6`}>Icon (emoji)</label>
+          <input id={`${a11yId}-field-6`} type="text" bind:value={form.icon} placeholder="e.g. &#128293;" />
         </div>
 
         <div class="form-group full-width">
-          <label>Description</label>
-          <textarea bind:value={form.description} rows="2" placeholder="What does this tier offer?"></textarea>
+          <label for={`${a11yId}-field-7`}>Description</label>
+          <textarea id={`${a11yId}-field-7`} bind:value={form.description} rows="2" placeholder="What does this tier offer?"></textarea>
         </div>
 
         <div class="form-group">
-          <label>Monthly Price ($)</label>
-          <input type="text" bind:value={form.price_monthly} placeholder="4.99" />
+          <label for={`${a11yId}-field-8`}>Monthly Price ($)</label>
+          <input id={`${a11yId}-field-8`} type="text" bind:value={form.price_monthly} placeholder="4.99" />
         </div>
 
         <div class="form-group">
-          <label>Yearly Price ($)</label>
-          <input type="text" bind:value={form.price_yearly} placeholder="49.99" />
+          <label for={`${a11yId}-field-9`}>Yearly Price ($)</label>
+          <input id={`${a11yId}-field-9`} type="text" bind:value={form.price_yearly} placeholder="49.99" />
         </div>
       </div>
 
@@ -295,16 +295,16 @@
 
       <div class="form-grid" style="margin-top: 12px;">
         <div class="form-group">
-          <label>Upload Limit (MB)</label>
-          <input type="number" bind:value={form.upload_limit_mb} min="1" max="500" />
+          <label for={`${a11yId}-field-10`}>Upload Limit (MB)</label>
+          <input id={`${a11yId}-field-10`} type="number" bind:value={form.upload_limit_mb} min="1" max="500" />
         </div>
         <div class="form-group">
-          <label>Custom Emoji Slots</label>
-          <input type="number" bind:value={form.custom_emoji_slots} min="0" max="100" />
+          <label for={`${a11yId}-field-11`}>Custom Emoji Slots</label>
+          <input id={`${a11yId}-field-11`} type="number" bind:value={form.custom_emoji_slots} min="0" max="100" />
         </div>
         <div class="form-group">
-          <label>Bio Character Limit</label>
-          <input type="number" bind:value={form.bio_char_limit} min="100" max="10000" />
+          <label for={`${a11yId}-field-12`}>Bio Character Limit</label>
+          <input id={`${a11yId}-field-12`} type="number" bind:value={form.bio_char_limit} min="100" max="10000" />
         </div>
       </div>
 
@@ -320,7 +320,7 @@
         </button>
       </div>
     </div>
-  </div>
+  </dialog>
 {/if}
 
 <style>

@@ -14,8 +14,8 @@
 
   let viewMode = $state<'forums' | 'feed'>(
     typeof localStorage !== 'undefined'
-      ? ((localStorage.getItem('home:viewMode') as 'forums' | 'feed') || 'feed')
-      : 'feed'
+      ? ((localStorage.getItem('home:viewMode') as 'forums' | 'feed') || 'forums')
+      : 'forums'
   );
 
   $effect(() => {
@@ -57,6 +57,8 @@
   let categories = $state<Category[]>([]);
   let unreadCounts = $state<Record<string, number>>({});
   let welcomeStats = $state<any>(null);
+  let presenceState = $state<'loading' | 'ready' | 'error'>('loading');
+  let onlineCount = $derived(welcomeStats?.online_count);
   let loading = $state(true);
 
   $effect(() => {
@@ -76,6 +78,9 @@
     }
     if (statsData.status === 'fulfilled') {
       welcomeStats = statsData.value;
+      presenceState = Number.isInteger(statsData.value?.online_count) && statsData.value.online_count >= 0 ? 'ready' : 'error';
+    } else {
+      presenceState = 'error';
     }
 
     loading = false;
@@ -86,6 +91,7 @@
   // delta to the loaded categories so counters refresh without a hard reload.
   let forumIndexChannel: any = null;
   $effect(() => {
+    if (!socketStore.connected) return;
     const phoenixSocket = socketStore.getSocket();
     if (!phoenixSocket) return;
     if (forumIndexChannel) return;
@@ -98,6 +104,10 @@
       }));
     });
     forumIndexChannel.join();
+    return () => {
+      forumIndexChannel?.leave();
+      forumIndexChannel = null;
+    };
   });
 
   function applyDelta(forum: Forum, forumId: string, delta: any, lastPostAt: string, lastPostUserId: string | null): Forum {
@@ -149,6 +159,42 @@
 </script>
 
 <div class="home-layout">
+  <section class="nexus-hero" aria-labelledby="nexus-hero-title">
+    <div class="hero-copy">
+      <div class="hero-kicker"><span class="hero-kicker-line"></span> A COMMUNITY BUILT TO CREATE</div>
+      <h1 id="nexus-hero-title">
+        {#if auth.isLoggedIn}
+          Your people. <span>Your next idea.</span>
+        {:else}
+          Find your people.<br /><span>Make something great.</span>
+        {/if}
+      </h1>
+      <p>Ideas, projects, and good conversations start here.</p>
+      <div class="hero-actions">
+        <a class="hero-primary" href={auth.isLoggedIn ? '/forums' : '/auth/register'}>
+          {auth.isLoggedIn ? 'Explore the forums' : 'Join the community'} <span aria-hidden="true">↗</span>
+        </a>
+        <a class="hero-secondary" href="/trending">See what’s happening</a>
+      </div>
+    </div>
+    <div class="hero-presence" role="status" aria-live="polite" aria-busy={presenceState === 'loading'}>
+      {#if presenceState === 'loading'}
+        <span class="presence-label">COMMUNITY PRESENCE</span>
+        <strong class="presence-message">Checking activity…</strong>
+        <span>Loading the online count</span>
+      {:else if presenceState === 'error'}
+        <span class="presence-label">COMMUNITY PRESENCE</span>
+        <strong class="presence-message">Activity unavailable</strong>
+        <span>You can still explore the forums</span>
+      {:else}
+        <span class="presence-label">{#if onlineCount > 0}<i></i>{/if} COMMUNITY PRESENCE</span>
+        <strong>{onlineCount.toLocaleString()} <small>online</small></strong>
+        <span>{onlineCount === 0 ? 'Be the first to start a conversation' : onlineCount === 1 ? 'One member is online now' : 'Members are online now'}</span>
+      {/if}
+    </div>
+    <div class="hero-orbit" aria-hidden="true"></div>
+  </section>
+
   <!-- View toggle -->
   <div class="view-toggle glass">
     <button class="toggle-btn" class:active={viewMode === 'feed'} onclick={() => viewMode = 'feed'}>
@@ -166,9 +212,9 @@
         <SocialFeed />
       {:else}
         <!-- Forum View -->
-        <div class="forum-index">
+        <div class="forum-index" id="forum-index">
           <!-- Welcome Center -->
-          <WelcomeCenter />
+          <WelcomeCenter communityHero />
 
           <!-- Shoutbox -->
           {#if siteSettings.shoutboxEnabled}
@@ -330,7 +376,36 @@
 </div>
 
 <style>
-  .home-layout { max-width: 1200px; margin: 0 auto; padding: 16px; }
+  .home-layout { max-width: 1360px; margin: 0 auto; padding: 28px 28px 48px; }
+
+  .nexus-hero {
+    min-height: 222px; position: relative; overflow: hidden; isolation: isolate;
+    display: flex; align-items: center; justify-content: space-between; gap: 24px;
+    padding: 34px 38px; margin-bottom: 24px;
+    border: 1px solid var(--border-color); border-radius: 20px;
+    background: linear-gradient(112deg, var(--accent-muted), var(--bg-card) 58%, var(--bg-secondary));
+    box-shadow: 0 20px 50px rgba(0,0,0,.16);
+  }
+  .hero-copy { position: relative; z-index: 2; }
+  .hero-kicker { display:flex; align-items:center; gap:9px; color:var(--accent); font-size:10px; font-weight:800; letter-spacing:.17em; }
+  .hero-kicker-line { width:24px; height:1px; background:var(--accent); }
+  .nexus-hero h1 { margin:12px 0 8px; font-size:clamp(32px,4vw,48px); line-height:1.04; letter-spacing:-.055em; font-weight:800; }
+  .nexus-hero h1 span { color:var(--accent); }
+  .nexus-hero p { margin:0; color:var(--text-secondary); font-size:14px; }
+  .hero-actions { display:flex; align-items:center; gap:10px; margin-top:20px; }
+  .hero-primary,.hero-secondary { min-height:40px; display:inline-flex; align-items:center; justify-content:center; gap:9px; padding:0 15px; border-radius:9px; text-decoration:none; font-size:12px; font-weight:750; transition:transform var(--transition-fast),background var(--transition-fast); }
+  .hero-primary { color:var(--on-accent); background:var(--accent); }
+  .hero-primary:hover { color:var(--on-accent); background:var(--accent-hover); transform:translateY(-1px); }
+  .hero-secondary { color:var(--text-primary); background:rgba(255,255,255,.06); border:1px solid var(--border-color); }
+  .hero-secondary:hover { background:rgba(255,255,255,.1); }
+  .hero-presence { z-index:2; width:218px; flex:none; padding:16px 17px; border:1px solid var(--border-color); border-radius:13px; background:var(--bg-secondary); backdrop-filter:blur(12px); }
+  .presence-label { display:flex; align-items:center; gap:8px; color:var(--text-secondary); font-size:9px; font-weight:800; letter-spacing:.1em; }
+  .presence-label i { width:7px; height:7px; border-radius:50%; background:#72dfa7; box-shadow:0 0 0 5px rgba(114,223,167,.12); }
+  .hero-presence .presence-message { font-size: 18px; line-height: 1.3; }
+  .hero-presence strong { display:block; margin:8px 0 0; font-size:29px; letter-spacing:-.04em; font-variant-numeric:tabular-nums; }
+  .hero-presence small { color:var(--text-secondary); font-size:12px; font-weight:550; letter-spacing:0; }
+  .hero-presence > span:last-child { color:var(--text-secondary); font-size:10px; }
+  .hero-orbit { pointer-events:none; position:absolute; z-index:1; width:330px; height:330px; right:12%; top:-200px; border:1px solid rgba(0,229,184,.16); border-radius:50%; box-shadow:0 0 0 35px rgba(0,229,184,.045),0 0 0 70px rgba(0,229,184,.025); }
 
   .view-toggle {
     display: flex; gap: 4px; margin-bottom: 16px;
@@ -519,11 +594,6 @@
     gap: 3px;
   }
 
-  .loading {
-    text-align: center;
-    padding: 60px 0;
-    color: var(--text-muted);
-  }
 
   .index-toolbar {
     display: flex;
@@ -577,5 +647,80 @@
     display: flex;
     flex-direction: column;
     gap: 6px;
+  }
+
+  .category-block {
+    margin: 0 0 2px;
+    overflow: hidden;
+    border: 1px solid var(--border-color);
+    border-radius: 15px;
+    background: var(--bg-card);
+    box-shadow: 0 12px 28px rgba(0,0,0,.11);
+  }
+  .category-header {
+    min-height: 56px;
+    margin: 0;
+    padding: 10px 17px;
+    border: 0;
+    border-left: 3px solid var(--accent);
+    border-radius: 0;
+    background: rgba(255,255,255,.018);
+  }
+  .category-header h2 { font-size: 12px; letter-spacing: .09em; }
+  .forum-table { border-spacing: 0; table-layout: fixed; }
+  .forum-table-header {
+    position: static;
+    background: rgba(255,255,255,.025);
+    border: 0;
+    color: var(--text-muted);
+    font-size: 9px;
+    letter-spacing: .1em;
+  }
+  .forum-table-header th { padding: 9px 12px; }
+  .forum-table-row { background: transparent; border-bottom: 1px solid var(--border-color); }
+  .forum-table-row:hover { background: rgba(255,255,255,.035); }
+  .forum-table-row td { padding: 14px 12px; }
+  .forum-info { align-items: center; gap: 13px; }
+  .forum-icon {
+    display: grid; place-items: center; width: 42px; height: 42px; flex: 0 0 42px;
+    margin: 0; border: 1px solid var(--border-color); border-radius: 12px;
+    background: rgba(255,255,255,.035); font-size: 19px;
+  }
+  .forum-name { font-size: 13px; letter-spacing: -.01em; }
+  .forum-desc { color: var(--text-secondary); line-height: 1.45; }
+  .stat-cell .count { font-size: 13px; font-variant-numeric: tabular-nums; }
+  .stat-cell .label { color: var(--text-muted); font-size: 9px; letter-spacing: .04em; text-transform: uppercase; }
+  .lastpost-cell { min-width: 150px; }
+  .post-time { color: var(--text-secondary); font-size: 11px; }
+  .last-post-by { font-size: 10px; }
+  .view-toggle { border: 1px solid var(--border-color); background: rgba(255,255,255,.025); }
+  .toggle-btn { min-height: 36px; padding: 7px 15px; border-radius: 8px; font-size: 12px; }
+  .toggle-btn.active { color: var(--on-accent); background: var(--accent); }
+
+  @media (max-width: 900px) {
+    .home-layout { padding: 20px 18px 36px; }
+    .nexus-hero { padding: 28px; }
+    .hero-presence { width: 190px; }
+  }
+  @media (max-width: 680px) {
+    .home-layout { padding: 14px 12px 30px; }
+    .nexus-hero { min-height:0; padding:24px 20px; border-radius:15px; margin-bottom:16px; }
+    .nexus-hero { flex-direction:column; align-items:stretch; }
+    .hero-presence { width:auto; }
+    .nexus-hero h1 { font-size:34px; }
+    .nexus-hero p { max-width:32ch; font-size:13px; }
+    .hero-actions { flex-wrap:wrap; margin-top:16px; }
+    .hero-primary,.hero-secondary { padding:0 12px; font-size:11px; }
+  }
+  @media (max-width: 768px) {
+    .category-block { border-radius: 12px; }
+    .category-header { min-height: 0; padding: 12px 14px; }
+    .forum-table tr.forum-table-row { border: 0; border-bottom: 1px solid var(--border-color); border-radius: 0; }
+    .forum-table tr.forum-table-row:last-child { border-bottom: 0; }
+    .forum-table tr.forum-table-row > td { background: transparent; }
+    .forum-table tr.forum-table-row > td:first-child { padding-top: 13px; }
+    .forum-table tr.forum-table-row > td.stat-cell { border: 0; }
+    .forum-icon { width: 38px; height: 38px; flex-basis: 38px; font-size: 17px; }
+    .lastpost-cell { min-width: 0; }
   }
 </style>

@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { modal } from '$lib/actions/modal';
+  const a11yId = $props.id();
   import { api } from '$lib/api/client';
   import { auth } from '$lib/stores/auth.svelte';
   import { themeStore } from '$lib/stores/theme.svelte';
@@ -411,8 +413,8 @@
     <section class="settings-section">
       <h3 class="section-title">Background & Banner</h3>
       <div class="field-group">
-        <label class="field-label">Background Image URL</label>
-        <input type="text" bind:value={profileBackgroundUrl} placeholder="https://example.com/bg.jpg" />
+        <label for={`${a11yId}-field-1`} class="field-label">Background Image URL</label>
+        <input id={`${a11yId}-field-1`} type="text" bind:value={profileBackgroundUrl} placeholder="https://example.com/bg.jpg" />
       </div>
       <ColorPicker label="Background Color" bind:value={profileBackgroundColor} />
       <div class="field-group">
@@ -426,8 +428,8 @@
           <ColorPicker label="Gradient Start" bind:value={profileGradientStart} />
           <ColorPicker label="Gradient End" bind:value={profileGradientEnd} />
           <div class="field-group">
-            <label class="field-label">Direction</label>
-            <select bind:value={profileGradientDirection}>
+            <label for={`${a11yId}-field-2`} class="field-label">Direction</label>
+            <select id={`${a11yId}-field-2`} bind:value={profileGradientDirection}>
               {#each gradientDirections as dir}
                 <option value={dir}>{dir}</option>
               {/each}
@@ -436,8 +438,8 @@
         </div>
       {/if}
       <div class="field-group">
-        <label class="field-label">Banner Image URL</label>
-        <input type="text" bind:value={profileBannerUrl} placeholder="https://example.com/banner.jpg" />
+        <label for={`${a11yId}-field-3`} class="field-label">Banner Image URL</label>
+        <input id={`${a11yId}-field-3`} type="text" bind:value={profileBannerUrl} placeholder="https://example.com/banner.jpg" />
       </div>
     </section>
 
@@ -481,20 +483,20 @@
     <section class="settings-section">
       <h3 class="section-title">Identity</h3>
       <div class="field-group">
-        <label class="field-label">Custom Title</label>
-        <input type="text" bind:value={customTitle} placeholder="Your custom flair..." maxlength="50" />
+        <label for={`${a11yId}-field-4`} class="field-label">Custom Title</label>
+        <input id={`${a11yId}-field-4`} type="text" bind:value={customTitle} placeholder="Your custom flair..." maxlength="50" />
         <span class="field-hint">Shown under your name in posts and on your profile</span>
       </div>
       <ColorPicker label="Nameplate Color" bind:value={nameplateColor} />
       <div class="field-group">
-        <label class="field-label">Nameplate Image URL</label>
-        <input type="text" bind:value={nameplateImageUrl} placeholder="https://example.com/nameplate.png" />
+        <label for={`${a11yId}-field-5`} class="field-label">Nameplate Image URL</label>
+        <input id={`${a11yId}-field-5`} type="text" bind:value={nameplateImageUrl} placeholder="https://example.com/nameplate.png" />
       </div>
       <div class="field-group">
-        <label class="field-label">Avatar Frame</label>
-        <div class="frame-picker">
+        <span id={`${a11yId}-group-1`} class="field-label">Avatar Frame</span>
+        <div aria-labelledby={`${a11yId}-group-1`} role="group" class="frame-picker">
           {#each frameOptions as opt}
-            <button
+            <button aria-pressed={avatarFrame === opt.value}
               type="button"
               class="frame-option"
               class:active={avatarFrame === opt.value}
@@ -539,11 +541,11 @@
       {/if}
 
       <div class="field-group">
-        <label class="field-label">Name Effect</label>
+        <span id={`${a11yId}-group-7`} class="field-label">Name Effect</span>
         {#if canChangeEffect}
-          <div class="effect-picker">
+          <div aria-labelledby={`${a11yId}-group-7`} role="group" class="effect-picker">
             {#each effectOptions as opt}
-              <button
+              <button aria-pressed={usernameEffect === opt.value}
                 type="button"
                 class="effect-option"
                 class:active={usernameEffect === opt.value}
@@ -582,8 +584,8 @@
     <section class="settings-section">
       <h3 class="section-title">Forum Signature</h3>
       <div class="field-group">
-        <label class="field-label">Signature (BBCode)</label>
-        <textarea
+        <label for={`${a11yId}-field-8`} class="field-label">Signature (BBCode)</label>
+        <textarea id={`${a11yId}-field-8`}
           bind:value={signatureBbcode}
           rows="4"
           maxlength="500"
@@ -857,8 +859,8 @@
 </div>
 
 {#if showSaveAsCode}
-  <div class="modal-backdrop" onclick={() => (showSaveAsCode = false)} role="presentation">
-    <div class="modal" onclick={(e) => e.stopPropagation()} role="dialog" aria-label="Save profile as Forge Code">
+  <dialog class="modal-backdrop" data-modal="overlay" use:modal={() => (showSaveAsCode = false)} >
+    <div class="modal"   aria-label="Save profile as Forge Code">
       <h2>Save Profile as Forge Code</h2>
       <p class="field-hint">Auto-saves your current edits then generates a shareable code.</p>
       <label class="field">
@@ -880,7 +882,7 @@
         </button>
       </div>
     </div>
-  </div>
+  </dialog>
 {/if}
 
 <style>
@@ -1092,6 +1094,7 @@
   }
 
   .upload-tile {
+    position: relative;
     display: flex; flex-direction: column; gap: 8px;
     padding: 16px;
     border: 2px dashed var(--border, #2a3040);
@@ -1101,7 +1104,8 @@
     text-align: center;
   }
   .upload-tile:hover { border-color: var(--accent, #00d4aa); }
-  .upload-tile input[type=file] { display: none; }
+  .upload-tile input[type=file] { position: absolute; inset: 0; opacity: 0; width: 100%; height: 100%; cursor: pointer; }
+  .upload-tile:focus-within { outline: 2px solid var(--accent); outline-offset: 3px; }
   .upload-title { font-size: 0.88rem; font-weight: 600; color: var(--text-secondary, #8a94a6); }
   .upload-preview { max-width: 100%; max-height: 120px; border-radius: 4px; object-fit: cover; }
   .upload-preview.banner { width: 100%; max-height: 80px; object-fit: cover; }

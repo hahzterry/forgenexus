@@ -54,10 +54,17 @@
   }
 </script>
 
+<svelte:window onkeydown={(event) => { if (event.key === 'Escape') closeMobileMenu(); }} />
+
 <header class="site-header">
   <div class="header-inner">
     <a href="/" class="logo">
-      <span class="logo-icon">&#9776;</span>
+      <span class="logo-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <path d="m12 2.8 8 4.6v9.2l-8 4.6-8-4.6V7.4l8-4.6Z" />
+          <path d="m8.5 14.8 2.2-5.6 2.2 5.6m-3.4-1.8h2.5m3-3.8v5.6" />
+        </svg>
+      </span>
       <span class="logo-text">Forge<span class="accent">Nexus</span></span>
     </a>
 
@@ -110,6 +117,7 @@
     <button
       class="mobile-toggle"
       aria-label="Toggle menu"
+      aria-controls="site-navigation-menu"
       aria-expanded={mobileMenuOpen}
       onclick={() => mobileMenuOpen = !mobileMenuOpen}
     >
@@ -125,10 +133,14 @@
 
   <nav
     class="mobile-menu"
+    id="site-navigation-menu"
     class:open={mobileMenuOpen}
     aria-label="Mobile navigation"
   >
-    <a href="/" onclick={closeMobileMenu}>Forums</a>
+    <a href="/" onclick={closeMobileMenu}>Home</a>
+    <a href="/forums" onclick={closeMobileMenu}>Forums</a>
+    <a href="/discover" onclick={closeMobileMenu}>Discover</a>
+    <a href="/marketplace" onclick={closeMobileMenu}>Market</a>
     <a href="/chat" onclick={closeMobileMenu}>Chat</a>
     <a href="/messages" onclick={closeMobileMenu}>Messages</a>
     <a href="/live" onclick={closeMobileMenu}>
@@ -144,10 +156,12 @@
     <a href="/stats" onclick={closeMobileMenu}>Stats</a>
     <a href="/search" onclick={closeMobileMenu}>Search</a>
     {#if auth.isLoggedIn}
+      <a href="/creator" onclick={closeMobileMenu}>Creator</a>
       <a href="/following" onclick={closeMobileMenu}>Following</a>
     {/if}
     {#if auth.isStaff}
       <a href="/mod" class="mod-link" onclick={closeMobileMenu}>Mod</a>
+      <a href="/admin" class="mod-link" onclick={closeMobileMenu}>Admin</a>
       <a href="/admin/plugins" class="mod-link" onclick={closeMobileMenu}>Plugins</a>
     {/if}
 
@@ -173,29 +187,32 @@
 
 <style>
   .site-header {
-    background: linear-gradient(180deg, var(--bg-secondary) 0%, var(--bg-primary) 100%);
+    background: var(--glass-bg);
     border-bottom: 1px solid var(--border-color);
     position: sticky;
     top: 0;
     z-index: 100;
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
   }
 
   .header-inner {
-    max-width: 1200px;
+    max-width: 1420px;
     margin: 0 auto;
-    padding: 0 16px;
-    height: 52px;
+    padding: 0 28px;
+    height: 68px;
     display: flex;
     align-items: center;
-    gap: 24px;
+    gap: 22px;
   }
 
   .logo {
     display: flex;
     align-items: center;
-    gap: 8px;
-    font-size: 18px;
+    gap: 10px;
+    font-size: 17px;
     font-weight: 800;
+    letter-spacing: -.04em;
     color: var(--text-primary);
     text-decoration: none;
   }
@@ -203,26 +220,39 @@
     color: var(--accent);
   }
   .logo-icon {
-    font-size: 20px;
-    color: var(--accent);
+    width: 34px;
+    height: 34px;
+    display: grid;
+    place-items: center;
+    border-radius: 11px;
+    background: linear-gradient(145deg, #72efca, #29b99c);
+    color: #07130f;
+    box-shadow: 0 5px 20px rgba(44, 170, 142, .2);
   }
+  .logo-icon svg { width: 20px; height: 20px; }
 
   .main-nav {
+    min-width: 0;
+    overflow-x: auto;
+    white-space: nowrap;
     display: flex;
-    gap: 4px;
+    gap: 3px;
   }
   .main-nav a {
-    padding: 6px 14px;
-    border-radius: var(--radius);
-    font-size: 13px;
-    font-weight: 500;
+    padding: 8px 11px;
+    border-radius: 9px;
+    font-size: 12px;
+    font-weight: 600;
     color: var(--text-secondary);
+    text-decoration: none;
     transition: all 0.15s;
   }
   .main-nav a:hover {
-    background: var(--bg-tertiary);
+    background: var(--bg-hover);
     color: var(--text-primary);
   }
+  .main-nav a[href="/"] { position: relative; }
+  .main-nav a[href="/"]:hover::after { content: ''; position: absolute; left: 11px; right: 11px; bottom: 2px; height: 2px; border-radius: 2px; background: var(--accent); }
   .main-nav :global(.mod-link) {
     color: #fbbf24;
     font-weight: 600;
@@ -262,21 +292,16 @@
     gap: 8px;
   }
 
+  .header-right :global(.btn) { min-height: 36px; padding: 0 13px; border-radius: 9px; font-size: 12px; font-weight: 700; }
+  .header-right :global(.btn-primary) { color: var(--on-accent); background: var(--accent); border-color: transparent; }
+  .header-right :global(.btn-primary:hover) { background: var(--accent-hover); color: var(--on-accent); }
+
   .user-menu {
     display: flex;
     align-items: center;
     gap: 12px;
   }
 
-  .notification-bell {
-    cursor: pointer;
-    font-size: 18px;
-    opacity: 0.7;
-    transition: opacity 0.15s;
-  }
-  .notification-bell:hover {
-    opacity: 1;
-  }
 
   .theme-toggle {
     background: none;
@@ -331,7 +356,7 @@
     display: none;
     position: fixed;
     inset: 0;
-    top: 52px;
+    top: 68px;
     background: rgba(0, 0, 0, 0.5);
     border: none;
     z-index: 98;
@@ -353,7 +378,7 @@
     /* Cap to viewport height so a long staff menu (Forums/Chat/Messages/Live/
        New Posts/Trending/Members/Stats/Search/Following/Mod/Plugins +
        theme/profile/logout) doesn't clip — scroll inside the menu instead. */
-    max-height: calc(100vh - 60px);
+    max-height: calc(100dvh - 62px);
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
   }
@@ -405,7 +430,7 @@
     justify-content: center;
   }
 
-  @media (max-width: 768px) {
+  @media (max-width: 1280px) {
     .main-nav {
       display: none;
     }
@@ -425,12 +450,18 @@
     .mobile-menu {
       display: flex;
       position: absolute;
-      top: 52px;
+      top: 68px;
       left: 0;
       right: 0;
       z-index: 99;
       border-bottom: 1px solid var(--border-color);
       box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
     }
+  }
+
+  @media (max-width: 1280px) {
+    .header-inner { height: 62px; padding: 0 14px; }
+    .mobile-backdrop { top: 62px; }
+    .mobile-menu { top: 62px; }
   }
 </style>

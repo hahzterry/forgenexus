@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { modal } from '$lib/actions/modal';
+  const a11yId = $props.id();
   import { api } from '$lib/api/client';
   import { auth } from '$lib/stores/auth.svelte';
 
@@ -223,15 +225,15 @@
 
 <!-- Modal -->
 {#if showModal}
-  <div class="modal-overlay" onclick={() => showModal = false}>
-    <div class="modal" onclick={(e) => e.stopPropagation()}>
+  <dialog class="modal-overlay" data-modal="overlay" use:modal={() => showModal = false}>
+    <div class="modal" >
       <h2>{editing ? 'Edit' : 'Create'} {modalType === 'category' ? 'Category' : 'Channel'}</h2>
 
       {#if modalType === 'category'}
         <div class="form-grid">
-          <div class="form-group"><label>Name</label><input type="text" bind:value={form.name} oninput={autoSlug} /></div>
-          <div class="form-group"><label>Slug</label><input type="text" bind:value={form.slug} /></div>
-          <div class="form-group"><label>Position</label><input type="number" bind:value={form.position} /></div>
+          <div class="form-group"><label for={`${a11yId}-field-1`}>Name</label><input id={`${a11yId}-field-1`} type="text" bind:value={form.name} oninput={autoSlug} /></div>
+          <div class="form-group"><label for={`${a11yId}-field-2`}>Slug</label><input id={`${a11yId}-field-2`} type="text" bind:value={form.slug} /></div>
+          <div class="form-group"><label for={`${a11yId}-field-3`}>Position</label><input id={`${a11yId}-field-3`} type="number" bind:value={form.position} /></div>
         </div>
         <div class="modal-actions">
           <button class="btn-secondary" onclick={() => showModal = false}>Cancel</button>
@@ -239,29 +241,29 @@
         </div>
       {:else}
         <div class="form-grid">
-          <div class="form-group"><label>Name</label><input type="text" bind:value={form.name} oninput={autoSlug} placeholder="general" /></div>
-          <div class="form-group"><label>Slug</label><input type="text" bind:value={form.slug} /></div>
-          <div class="form-group full-width"><label>Description</label><input type="text" bind:value={form.description} placeholder="What's this channel for?" /></div>
-          <div class="form-group full-width"><label>Topic</label><input type="text" bind:value={form.topic} placeholder="Current topic (shown in header)" /></div>
+          <div class="form-group"><label for={`${a11yId}-field-4`}>Name</label><input id={`${a11yId}-field-4`} type="text" bind:value={form.name} oninput={autoSlug} placeholder="general" /></div>
+          <div class="form-group"><label for={`${a11yId}-field-5`}>Slug</label><input id={`${a11yId}-field-5`} type="text" bind:value={form.slug} /></div>
+          <div class="form-group full-width"><label for={`${a11yId}-field-6`}>Description</label><input id={`${a11yId}-field-6`} type="text" bind:value={form.description} placeholder="What's this channel for?" /></div>
+          <div class="form-group full-width"><label for={`${a11yId}-field-7`}>Topic</label><input id={`${a11yId}-field-7`} type="text" bind:value={form.topic} placeholder="Current topic (shown in header)" /></div>
           <div class="form-group">
-            <label>Type</label>
-            <select bind:value={form.type}>
+            <label for={`${a11yId}-field-8`}>Type</label>
+            <select id={`${a11yId}-field-8`} bind:value={form.type}>
               <option value="text">Text</option>
               <option value="voice">Voice</option>
               <option value="announcements">Announcements</option>
             </select>
           </div>
           <div class="form-group">
-            <label>Category</label>
-            <select bind:value={form.category_id}>
+            <label for={`${a11yId}-field-9`}>Category</label>
+            <select id={`${a11yId}-field-9`} bind:value={form.category_id}>
               <option value="">None</option>
               {#each categories as cat}<option value={cat.id}>{cat.name}</option>{/each}
             </select>
           </div>
-          <div class="form-group"><label>Icon (emoji)</label><input type="text" bind:value={form.icon} placeholder="#" /></div>
-          <div class="form-group"><label>Color</label><input type="color" bind:value={form.color} /></div>
-          <div class="form-group"><label>Slowmode (seconds)</label><input type="number" bind:value={form.slowmode_seconds} min="0" max="3600" /></div>
-          <div class="form-group"><label>Position</label><input type="number" bind:value={form.position} /></div>
+          <div class="form-group"><label for={`${a11yId}-field-10`}>Icon (emoji)</label><input id={`${a11yId}-field-10`} type="text" bind:value={form.icon} placeholder="#" /></div>
+          <div class="form-group"><label for={`${a11yId}-field-11`}>Color</label><input id={`${a11yId}-field-11`} type="color" bind:value={form.color} /></div>
+          <div class="form-group"><label for={`${a11yId}-field-12`}>Slowmode (seconds)</label><input id={`${a11yId}-field-12`} type="number" bind:value={form.slowmode_seconds} min="0" max="3600" /></div>
+          <div class="form-group"><label for={`${a11yId}-field-13`}>Position</label><input id={`${a11yId}-field-13`} type="number" bind:value={form.position} /></div>
         </div>
 
         <h3 class="section-label">Permissions</h3>
@@ -278,7 +280,7 @@
         </div>
       {/if}
     </div>
-  </div>
+  </dialog>
 {/if}
 
 <style>

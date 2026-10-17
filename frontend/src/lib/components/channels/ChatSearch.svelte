@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { modal } from '$lib/actions/modal';
   import { api } from '$lib/api/client';
   import type { ChannelMessage } from '$lib/stores/channels.svelte';
 
@@ -66,7 +67,7 @@
   }
 </script>
 
-<div class="search-overlay" role="dialog">
+<dialog class="search-overlay" data-modal="overlay" use:modal={onClose} aria-label="Search channel messages">
   <div class="search-panel">
     <div class="search-header">
       <div class="search-input-row">
@@ -76,10 +77,9 @@
           bind:value={query}
           oninput={handleInput}
           onkeydown={handleKeydown}
-          placeholder="Search messages..."
-          autofocus
+          placeholder="Search messages..." aria-label="Search messages"
         />
-        <button class="close-btn" onclick={onClose}>&times;</button>
+        <button aria-label="Close" class="close-btn" onclick={onClose}>&times;</button>
       </div>
 
       <div class="search-filters">
@@ -123,7 +123,7 @@
       {/if}
     </div>
   </div>
-</div>
+</dialog>
 
 <style>
   .search-overlay {
@@ -254,6 +254,7 @@
     text-overflow: ellipsis;
     display: -webkit-box;
     -webkit-line-clamp: 2;
+    line-clamp: 2;
     -webkit-box-orient: vertical;
   }
   .result-body :global(mark) {

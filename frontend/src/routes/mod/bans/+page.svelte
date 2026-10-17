@@ -1,4 +1,5 @@
 <script lang="ts">
+  const a11yId = $props.id();
   import { moderation } from '$lib/stores/moderation.svelte';
   import { api } from '$lib/api/client';
 
@@ -47,13 +48,13 @@
   {#if showForm}
     <div class="ban-form">
       <div class="form-group">
-        <label>User ID</label>
-        <input type="text" bind:value={banForm.user_id} placeholder="User UUID" />
+        <label for={`${a11yId}-field-1`}>User ID</label>
+        <input id={`${a11yId}-field-1`} type="text" bind:value={banForm.user_id} placeholder="User UUID" />
       </div>
       <div class="form-row">
         <div class="form-group">
-          <label>Type</label>
-          <select bind:value={banForm.type}>
+          <label for={`${a11yId}-field-2`}>Type</label>
+          <select id={`${a11yId}-field-2`} bind:value={banForm.type}>
             <option value="temporary">Temporary</option>
             <option value="permanent">Permanent</option>
             <option value="ip">IP Ban</option>
@@ -61,14 +62,14 @@
         </div>
         {#if banForm.type === 'temporary'}
           <div class="form-group">
-            <label>Expires At</label>
-            <input type="datetime-local" bind:value={banForm.expires_at} />
+            <label for={`${a11yId}-field-3`}>Expires At</label>
+            <input id={`${a11yId}-field-3`} type="datetime-local" bind:value={banForm.expires_at} />
           </div>
         {/if}
       </div>
       <div class="form-group">
-        <label>Reason</label>
-        <textarea bind:value={banForm.reason} placeholder="Reason for ban" rows="2"></textarea>
+        <label for={`${a11yId}-field-4`}>Reason</label>
+        <textarea id={`${a11yId}-field-4`} bind:value={banForm.reason} placeholder="Reason for ban" rows="2"></textarea>
       </div>
       {#if error}
         <p class="error">{error}</p>

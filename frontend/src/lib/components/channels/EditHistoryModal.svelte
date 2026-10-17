@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { modal } from '$lib/actions/modal';
   import { api } from '$lib/api/client';
 
   let { channelSlug, messageId, onClose }: {
@@ -34,11 +35,11 @@
   }
 </script>
 
-<div class="modal-overlay" onclick={onClose}>
-  <div class="modal" onclick={(e) => e.stopPropagation()}>
+<dialog class="modal-overlay" data-modal="overlay" use:modal={onClose}>
+  <div class="modal" >
     <div class="modal-header">
       <h3>Edit History</h3>
-      <button class="close-btn" onclick={onClose}>{'\u2715'}</button>
+      <button aria-label="Close" class="close-btn" onclick={onClose}>{'\u2715'}</button>
     </div>
 
     {#if loading}
@@ -62,7 +63,7 @@
       </div>
     {/if}
   </div>
-</div>
+</dialog>
 
 <style>
   .modal-overlay {

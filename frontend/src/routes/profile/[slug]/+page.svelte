@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { modal } from '$lib/actions/modal';
   import { page } from '$app/stores';
   import { api } from '$lib/api/client';
   import { auth } from '$lib/stores/auth.svelte';
@@ -733,8 +734,8 @@
           </div>
 
           {#if showQrCode}
-            <div class="qr-backdrop" onclick={() => (showQrCode = false)} role="presentation">
-              <div class="qr-popover" role="dialog" aria-label="Share profile" onclick={(e) => e.stopPropagation()}>
+            <dialog aria-label="Share profile" class="qr-backdrop" data-modal="overlay" use:modal={() => (showQrCode = false)} >
+              <div class="qr-popover"  aria-label="Share profile" >
                 <img src={profileQrDataUrl()} alt="QR code for profile" width="280" height="280" />
                 <code class="qr-url">{profileShareUrl()}</code>
                 <div class="qr-actions">
@@ -742,7 +743,7 @@
                   <button class="btn-small" onclick={() => (showQrCode = false)}>Close</button>
                 </div>
               </div>
-            </div>
+            </dialog>
           {/if}
         </div>
       </div>
@@ -1202,8 +1203,8 @@
 
   <!-- Staff Tools drawer -->
   {#if showStaffPanel && profile && auth.user?.is_staff}
-    <div class="staff-backdrop" onclick={() => (showStaffPanel = false)} role="presentation">
-      <aside class="staff-drawer" onclick={(e) => e.stopPropagation()} role="dialog" aria-label="Staff tools for {profile.username}">
+    <dialog class="staff-backdrop" data-modal="overlay" use:modal={() => (showStaffPanel = false)} >
+      <aside class="staff-drawer"   aria-label="Staff tools for {profile.username}">
         <header class="staff-head">
           <h2>🛡️ Staff Tools — {profile.username}</h2>
           <button class="staff-close" onclick={() => (showStaffPanel = false)} aria-label="Close">×</button>
@@ -1352,7 +1353,7 @@
 
         <footer class="staff-foot">All actions are logged to the admin audit trail.</footer>
       </aside>
-    </div>
+    </dialog>
   {/if}
 </div>
 
@@ -2764,7 +2765,7 @@
     .badge-date { font-size: 9px; }
 
     /* Endorsement pills + emoji wraps */
-    .endorsement-pills, .pinned-thread-card .pin-meta { flex-wrap: wrap; gap: 4px 8px; }
+    .endorsement-pills { flex-wrap: wrap; gap: 4px 8px; }
   }
 
   @media (max-width: 480px) {

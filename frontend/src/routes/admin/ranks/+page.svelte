@@ -1,4 +1,5 @@
 <script lang="ts">
+  const a11yId = $props.id();
   import { admin } from '$lib/stores/admin.svelte';
   let loading = $state(true);
   let showForm = $state(false);
@@ -14,10 +15,10 @@
 <div class="page">
   <div class="hdr"><h1>Ranks</h1><button class="btn bp" onclick={() => openForm()}>New Rank</button></div>
   {#if showForm}<div class="form-box"><h3>{editing ? 'Edit' : 'New'} Rank</h3>
-    <div class="fg"><div class="f"><label>Name</label><input type="text" bind:value={name} /></div>
-      <div class="f"><label>Min Posts</label><input type="number" bind:value={minPosts} /></div>
-      <div class="f"><label>Icon</label><input type="text" bind:value={icon} /></div>
-      <div class="f"><label>Color</label><input type="color" bind:value={color} /></div></div>
+    <div class="fg"><div class="f"><label for={`${a11yId}-field-1`}>Name</label><input id={`${a11yId}-field-1`} type="text" bind:value={name} /></div>
+      <div class="f"><label for={`${a11yId}-field-2`}>Min Posts</label><input id={`${a11yId}-field-2`} type="number" bind:value={minPosts} /></div>
+      <div class="f"><label for={`${a11yId}-field-3`}>Icon</label><input id={`${a11yId}-field-3`} type="text" bind:value={icon} /></div>
+      <div class="f"><label for={`${a11yId}-field-4`}>Color</label><input id={`${a11yId}-field-4`} type="color" bind:value={color} /></div></div>
     <div class="fa"><button class="btn" onclick={() => { showForm = false; }}>Cancel</button><button class="btn bp" onclick={save}>Save</button></div>
   </div>{/if}
   {#if loading}<p class="ld">Loading...</p>

@@ -24,7 +24,8 @@
 
 <div class="toaster" role="region" aria-label="Notification toasts" aria-live="polite">
   {#each notificationStore.toasts as toast (toast.toastId)}
-    <button class="toast" onclick={() => handleClick(toast)}>
+    <div class="toast">
+      <button type="button" class="toast-open" onclick={() => handleClick(toast)}>
       <div class="toast-icon">{typeIcons[toast.type] || '\u{2022}'}</div>
       <div class="toast-body">
         {#if toast.actor}
@@ -38,8 +39,9 @@
         {/if}
         <span class="toast-text">{toast.body || toast.title || 'New notification'}</span>
       </div>
-      <span class="toast-close" onclick={(e) => dismiss(e, toast.toastId)} role="button" tabindex="0" aria-label="Dismiss">×</span>
-    </button>
+      </button>
+      <button type="button" class="toast-close" onclick={(e) => dismiss(e, toast.toastId)} aria-label="Dismiss notification">×</button>
+    </div>
   {/each}
 </div>
 
@@ -76,6 +78,8 @@
   }
   .toast:hover { border-color: var(--accent); }
 
+  .toast-open { display: flex; align-items: flex-start; gap: 10px; flex: 1; padding: 0; border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+  .toast-close { background: none; border: 0; color: inherit; font: inherit; cursor: pointer; }
   .toast-icon {
     font-size: 14px;
     font-weight: 800;
@@ -103,6 +107,7 @@
     overflow: hidden;
     display: -webkit-box;
     -webkit-line-clamp: 2;
+    line-clamp: 2;
     -webkit-box-orient: vertical;
   }
   .toast-close {

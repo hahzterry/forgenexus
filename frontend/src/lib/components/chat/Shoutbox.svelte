@@ -21,7 +21,7 @@
   let messages = $state<ShoutboxMessage[]>([]);
   let messageInput = $state('');
   let collapsed = $state(false);
-  let messagesEl: HTMLDivElement;
+  let messagesEl = $state<HTMLDivElement>();
   let sending = $state(false);
 
   // Track existing message IDs to prevent duplicates from real-time + optimistic

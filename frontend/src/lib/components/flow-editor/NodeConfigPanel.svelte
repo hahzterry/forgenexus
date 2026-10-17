@@ -1,4 +1,5 @@
 <script lang="ts">
+  const a11yId = $props.id();
   import { canvasState } from './canvas-state.svelte';
   import { categoryColor } from './category-colors';
 
@@ -36,8 +37,8 @@
     <div class="panel-body">
       <!-- Label -->
       <div class="field">
-        <label class="field-label">Label</label>
-        <input
+        <label for={`${a11yId}-field-1`} class="field-label">Label</label>
+        <input id={`${a11yId}-field-1`}
           type="text"
           bind:value={editLabel}
           onblur={updateLabel}
@@ -72,9 +73,9 @@
       {#if schema.config_fields.length > 0}
         <div class="config-section">
           <span class="config-section-title">Configuration</span>
-          {#each schema.config_fields as field (field.name)}
+          {#each schema.config_fields as field, a11yIndex1 (field.name)}
             <div class="field">
-              <label class="field-label">
+              <label for={`${a11yId}-config-${field.name}`} class="field-label">
                 {field.name.replace(/_/g, ' ')}
                 {#if field.description}
                   <span class="field-hint">{field.description}</span>
@@ -82,7 +83,7 @@
               </label>
 
               {#if field.type === 'select' && field.options}
-                <select
+                <select id={`${a11yId}-config-${field.name}`}
                   value={node.config[field.name] ?? field.default ?? ''}
                   onchange={(e: Event) => updateConfigField(field.name, (e.target as HTMLSelectElement).value)}
                 >
@@ -92,7 +93,7 @@
                 </select>
 
               {:else if field.type === 'number'}
-                <input
+                <input id={`${a11yId}-config-${field.name}`}
                   type="number"
                   value={node.config[field.name] ?? field.default ?? 0}
                   onchange={(e: Event) => updateConfigField(field.name, Number((e.target as HTMLInputElement).value))}
@@ -100,7 +101,7 @@
 
               {:else if field.type === 'boolean'}
                 <label class="toggle-label">
-                  <input
+                  <input id={`${a11yId}-config-${field.name}`}
                     type="checkbox"
                     checked={node.config[field.name] ?? field.default ?? false}
                     onchange={(e: Event) => updateConfigField(field.name, (e.target as HTMLInputElement).checked)}
@@ -109,7 +110,7 @@
                 </label>
 
               {:else if field.type === 'text' || field.type === 'json'}
-                <textarea
+                <textarea id={`${a11yId}-config-${field.name}`}
                   rows="3"
                   value={typeof node.config[field.name] === 'object' ? JSON.stringify(node.config[field.name], null, 2) : (node.config[field.name] ?? field.default ?? '')}
                   onblur={(e: FocusEvent) => {
@@ -123,7 +124,7 @@
                 ></textarea>
 
               {:else}
-                <input
+                <input id={`${a11yId}-config-${field.name}`}
                   type="text"
                   value={node.config[field.name] ?? field.default ?? ''}
                   onchange={(e: Event) => updateConfigField(field.name, (e.target as HTMLInputElement).value)}

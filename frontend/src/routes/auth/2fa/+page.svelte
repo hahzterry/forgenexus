@@ -41,7 +41,7 @@
     <form onsubmit={(e) => { e.preventDefault(); verify(); }}>
       <label>
         <span>Authentication Code</span>
-        <input type="text" bind:value={code} maxlength="8" placeholder="000000" autocomplete="one-time-code" autofocus />
+        <input type="text" bind:value={code} maxlength="8" placeholder="000000" autocomplete="one-time-code" />
       </label>
       <button type="submit" class="btn btn-primary full-width" disabled={submitting || !code.trim()}>
         {submitting ? 'Verifying...' : 'Verify'}

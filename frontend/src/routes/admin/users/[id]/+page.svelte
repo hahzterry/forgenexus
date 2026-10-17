@@ -1,4 +1,5 @@
 <script lang="ts">
+  const a11yId = $props.id();
   import { page } from '$app/stores';
   import { admin } from '$lib/stores/admin.svelte';
 
@@ -121,10 +122,10 @@
     <div class="sec">
       <h2>Edit User</h2>
       <div class="edit-form">
-        <div class="field"><label>Username</label><input type="text" bind:value={editName} /></div>
-        <div class="field"><label>Email</label><input type="text" bind:value={editEmail} /></div>
-        <div class="field"><label>Status</label>
-          <select bind:value={editStatus}><option value="active">Active</option><option value="banned">Banned</option><option value="suspended">Suspended</option></select>
+        <div class="field"><label for={`${a11yId}-field-1`}>Username</label><input id={`${a11yId}-field-1`} type="text" bind:value={editName} /></div>
+        <div class="field"><label for={`${a11yId}-field-2`}>Email</label><input id={`${a11yId}-field-2`} type="text" bind:value={editEmail} /></div>
+        <div class="field"><label for={`${a11yId}-field-3`}>Status</label>
+          <select id={`${a11yId}-field-3`} bind:value={editStatus}><option value="active">Active</option><option value="banned">Banned</option><option value="suspended">Suspended</option></select>
         </div>
         <div class="form-actions">
           <button class="btn" onclick={resetPw}>Reset Password</button>

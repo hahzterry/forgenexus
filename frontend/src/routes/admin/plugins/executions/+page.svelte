@@ -29,14 +29,14 @@
     <div class="exec-list">
       {#each plugins.executions as exec (exec.id)}
         <div class="exec-card" class:expanded={expandedId === exec.id}>
-          <div class="exec-row" onclick={() => { expandedId = expandedId === exec.id ? null : exec.id; }}>
+          <button type="button" class="exec-row" aria-expanded={expandedId === exec.id} onclick={() => { expandedId = expandedId === exec.id ? null : exec.id; }}>
             <span class="badge badge-{exec.status}">{exec.status}</span>
             <span class="trigger">{exec.trigger_type.replace(/_/g, ' ')}</span>
             <span class="stat">{exec.nodes_executed} nodes</span>
             <span class="stat">{exec.db_operations} DB ops</span>
             <span class="stat">{exec.duration_ms ?? '?'}ms</span>
             <span class="time">{new Date(exec.started_at).toLocaleString()}</span>
-          </div>
+          </button>
 
           {#if expandedId === exec.id}
             <div class="trace-section">
@@ -73,7 +73,8 @@
   .filter-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
   .exec-list { display: flex; flex-direction: column; gap: 6px; }
   .exec-card { background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius-lg); overflow: hidden; }
-  .exec-row { display: flex; align-items: center; gap: 10px; padding: 12px 16px; cursor: pointer; font-size: 13px; }
+  .exec-row {
+    width: 100%; text-align: left; color: inherit; font: inherit; border: 0; display: flex; align-items: center; gap: 10px; padding: 12px 16px; cursor: pointer; font-size: 13px; }
   .exec-row:hover { background: var(--bg-hover); }
   .badge { padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; background: var(--bg-tertiary); color: var(--text-secondary); }
   .badge-completed { background: #22c55e33; color: #4ade80; }

@@ -1,11 +1,13 @@
 <script lang="ts">
+  import { modal } from '$lib/actions/modal';
   import { api } from '$lib/api/client';
 
+  const paletteId = $props.id();
   let isOpen = $state(false);
   let query = $state('');
   let results = $state<any[]>([]);
   let selectedIndex = $state(0);
-  let inputEl: HTMLInputElement;
+  let inputEl = $state<HTMLInputElement>();
 
   const defaultCommands = [
     { type: 'nav', label: 'Go to Home Feed', icon: '🏠', action: () => goto('/') },
@@ -55,7 +57,8 @@
       e.preventDefault();
       selectedIndex = Math.max(selectedIndex - 1, 0);
     }
-    if (e.key === 'Enter' && results[selectedIndex]) {
+    if (e.key === 'Enter' && e.target === inputEl && results[selectedIndex]) {
+      e.preventDefault();
       results[selectedIndex].action();
     }
   }
@@ -72,22 +75,26 @@
     selectedIndex = 0;
   });
 
-  if (typeof window !== 'undefined') {
-    window.addEventListener('keydown', handleKeydown);
-  }
+
 </script>
 
+<svelte:window onkeydown={handleKeydown} />
+
 {#if isOpen}
-  <!-- svelte-ignore a11y-click-events-have-key-events -->
-  <div class="palette-overlay" onclick={close} role="dialog" aria-modal="true">
-    <!-- svelte-ignore a11y-click-events-have-key-events -->
-    <div class="palette" onclick={(e) => e.stopPropagation()} role="document" tabindex="-1">
+  <dialog aria-label="Command search" class="palette-overlay" data-modal="overlay" use:modal={close}  aria-modal="true">
+    <div class="palette"   >
       <div class="palette-input-wrap">
         <span class="palette-icon">⌘</span>
         <input
           bind:this={inputEl}
           bind:value={query}
           type="text"
+          role="combobox"
+          aria-label="Search commands"
+          aria-autocomplete="list"
+          aria-expanded="true"
+          aria-controls={`${paletteId}-results`}
+          aria-activedescendant={results.length ? `${paletteId}-result-${selectedIndex}` : undefined}
           class="palette-input"
           placeholder="Type a command or search..."
           autocomplete="off"
@@ -96,10 +103,11 @@
         <kbd class="palette-kbd">ESC</kbd>
       </div>
 
-      <div class="palette-results">
+      <div class="palette-results" id={`${paletteId}-results`} role="listbox" aria-label="Commands">
         {#each results as result, i}
-          <!-- svelte-ignore a11y-click-events-have-key-events -->
-          <div
+          <button
+            type="button"
+            id={`${paletteId}-result-${i}`}
             class="palette-item"
             class:selected={i === selectedIndex}
             onclick={() => result.action()}
@@ -110,7 +118,7 @@
             <span class="palette-item-icon">{result.icon}</span>
             <span class="palette-item-label">{result.label}</span>
             <span class="palette-item-type">{result.type}</span>
-          </div>
+          </button>
         {/each}
 
         {#if results.length === 0}
@@ -124,7 +132,7 @@
         <span><kbd>esc</kbd> close</span>
       </div>
     </div>
-  </div>
+  </dialog>
 {/if}
 
 <style>
@@ -194,6 +202,7 @@
   }
 
   .palette-item {
+    width: 100%; border: 0; background: transparent; text-align: left; font: inherit; color: inherit;
     display: flex;
     align-items: center;
     gap: 10px;

@@ -1,4 +1,5 @@
 <script lang="ts">
+  const a11yId = $props.id();
   import { page } from '$app/stores';
   import { plugins, type JsPlugin, type JsPluginExecution } from '$lib/stores/plugins.svelte';
 
@@ -148,18 +149,18 @@
           <button class="btn btn-primary" onclick={saveSettings} disabled={saving}>{saving ? 'Saving...' : 'Save Settings'}</button>
         </div>
         {#if plugin.manifest?.settings_schema?.length > 0}
-          {#each plugin.manifest.settings_schema as field (field.key)}
+          {#each plugin.manifest.settings_schema as field, a11yIndex1 (field.key)}
             <div class="field">
-              <label>{field.label || field.key}</label>
+              <label for={`${a11yId}-config-${field.key}`}>{field.label || field.key}</label>
               {#if field.type === 'boolean'}
                 <label class="toggle-label">
-                  <input type="checkbox" checked={editSettings[field.key] ?? field.default === 'true'} onchange={(e: Event) => { editSettings = { ...editSettings, [field.key]: (e.target as HTMLInputElement).checked }; }} />
+                  <input id={`${a11yId}-config-${field.key}`} type="checkbox" checked={editSettings[field.key] ?? field.default === 'true'} onchange={(e: Event) => { editSettings = { ...editSettings, [field.key]: (e.target as HTMLInputElement).checked }; }} />
                   <span>{editSettings[field.key] ? 'Enabled' : 'Disabled'}</span>
                 </label>
               {:else if field.type === 'number'}
-                <input type="number" value={editSettings[field.key] ?? field.default ?? ''} onchange={(e: Event) => { editSettings = { ...editSettings, [field.key]: Number((e.target as HTMLInputElement).value) }; }} />
+                <input id={`${a11yId}-config-${field.key}`} type="number" value={editSettings[field.key] ?? field.default ?? ''} onchange={(e: Event) => { editSettings = { ...editSettings, [field.key]: Number((e.target as HTMLInputElement).value) }; }} />
               {:else}
-                <input type="text" value={editSettings[field.key] ?? field.default ?? ''} onchange={(e: Event) => { editSettings = { ...editSettings, [field.key]: (e.target as HTMLInputElement).value }; }} />
+                <input id={`${a11yId}-config-${field.key}`} type="text" value={editSettings[field.key] ?? field.default ?? ''} onchange={(e: Event) => { editSettings = { ...editSettings, [field.key]: (e.target as HTMLInputElement).value }; }} />
               {/if}
             </div>
           {/each}
@@ -286,7 +287,7 @@
 
   .field { display: flex; flex-direction: column; gap: 4px; margin-bottom: 10px; }
   .field label { font-size: 12px; font-weight: 600; color: var(--text-secondary); text-transform: capitalize; }
-  input, select { padding: 8px 12px; border: 1px solid var(--border-color); border-radius: var(--radius); background: var(--bg-input); color: var(--text-primary); font-size: 13px; font-family: inherit; width: 100%; }
+  input { padding: 8px 12px; border: 1px solid var(--border-color); border-radius: var(--radius); background: var(--bg-input); color: var(--text-primary); font-size: 13px; font-family: inherit; width: 100%; }
   input:focus { outline: none; border-color: var(--accent); }
   .toggle-label { display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 12px; color: var(--text-secondary); }
   .toggle-label input[type="checkbox"] { width: auto; }

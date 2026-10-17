@@ -11,12 +11,9 @@
 
 <div class="toast-container">
   {#each toast.toasts as t (t.id)}
-    <!-- svelte-ignore a11y-click-events-have-key-events -->
     <div
       class="toast-item toast-{t.type}"
       role="alert"
-      tabindex="-1"
-      onclick={() => toast.dismiss(t.id)}
       style="--toast-color: {typeConfig[t.type].color}"
     >
       <span class="toast-icon">{@html typeConfig[t.type].icon}</span>
@@ -53,7 +50,6 @@
     border-left: 4px solid var(--toast-color);
     border-radius: var(--radius, 6px);
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
-    cursor: pointer;
     position: relative;
     overflow: hidden;
     animation: toast-slide-in 0.3s ease-out forwards;
@@ -80,7 +76,6 @@
     border: none;
     color: var(--text-muted, #888);
     font-size: 18px;
-    cursor: pointer;
     padding: 0 2px;
     line-height: 1;
     flex-shrink: 0;

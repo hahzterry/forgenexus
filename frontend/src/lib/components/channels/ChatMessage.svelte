@@ -88,6 +88,10 @@
 <div
   id="msg-{message.id}"
   class="chat-message"
+  role="group"
+  aria-label={`Message from ${message.user?.username || 'Unknown'}`}
+  onfocusin={() => showActions = true}
+  onfocusout={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) showActions = false; }}
   class:deleted={message.is_deleted}
   class:pinned={message.is_pinned}
   onmouseenter={() => showActions = true}
@@ -509,6 +513,7 @@
     line-height: 1.3;
     display: -webkit-box;
     -webkit-line-clamp: 2;
+    line-clamp: 2;
     -webkit-box-orient: vertical;
     overflow: hidden;
   }

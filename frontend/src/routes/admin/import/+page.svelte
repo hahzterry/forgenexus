@@ -5,7 +5,7 @@
   let step = $state(1);
   let source = $state('');
   let file: File | null = $state(null);
-  let fileInputEl: HTMLInputElement;
+  let fileInputEl = $state<HTMLInputElement>();
 
   // Options
   let importUsers = $state(true);

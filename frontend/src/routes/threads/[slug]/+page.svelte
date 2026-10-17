@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { modal } from '$lib/actions/modal';
+  import { decoratePostHtml } from '$lib/forum/post-html';
   import { page } from '$app/stores';
   import { api } from '$lib/api/client';
   import Breadcrumb from '$lib/components/layout/Breadcrumb.svelte';
@@ -10,12 +12,15 @@
   import ReportButton from '$lib/components/moderation/ReportButton.svelte';
   import FormattingToolbar from '$lib/components/editor/FormattingToolbar.svelte';
   import EmojiPicker from '$lib/components/editor/EmojiPicker.svelte';
+  import SmiliesTray from '$lib/components/editor/SmiliesTray.svelte';
   import MentionAutocomplete from '$lib/components/editor/MentionAutocomplete.svelte';
   import UserHoverCard from '$lib/components/common/UserHoverCard.svelte';
   import { toast } from '$lib/stores/toast.svelte';
   import { socketStore } from '$lib/stores/socket.svelte';
   import { onDestroy } from 'svelte';
   import LinkPreview from "$lib/components/common/LinkPreview.svelte";
+  import ForumPostingRules from '$lib/components/forum/ForumPostingRules.svelte';
+  import { voiceStore } from '$lib/stores/voice.svelte';
 
   let currentThreadId: string | null = null;
 
@@ -29,6 +34,134 @@
   let isMuted = $state(false);
   let currentPage = $state(1);
   let totalPages = $state(1);
+  let allForums = $state<any[]>([]);
+
+  // === Feature 4: Thread Search & Quick Page Jump ===
+  let showThreadSearch = $state(false);
+  let threadSearchQuery = $state('');
+  let jumpPageVal = $state<number | string>('');
+
+  let displayedPosts = $derived(
+    threadSearchQuery.trim()
+      ? posts.filter(p =>
+          p.body?.toLowerCase().includes(threadSearchQuery.toLowerCase()) ||
+          p.user?.username?.toLowerCase().includes(threadSearchQuery.toLowerCase())
+        )
+      : posts
+  );
+
+  function handlePageJump(targetPg?: number) {
+    const pg = targetPg !== undefined ? targetPg : Number(jumpPageVal);
+    if (!pg || isNaN(pg)) return;
+    const clamped = Math.max(1, Math.min(totalPages, Math.floor(pg)));
+    goToPage(clamped);
+    jumpPageVal = '';
+  }
+
+  function clearThreadSearch() {
+    threadSearchQuery = '';
+    showThreadSearch = false;
+  }
+
+  // === Feature 2: Reputation / Karma System ===
+  let repModalPost = $state<any>(null);
+  let repAmount = $state(1);
+  let repReason = $state('');
+  let submittingRep = $state(false);
+
+  function openRepModal(post: any) {
+    repModalPost = post;
+    repAmount = 1;
+    repReason = '';
+  }
+
+  function getReputationMeta(rep: number): { count: number; color: string; label: string } {
+    if (rep < 0) return { count: 1, color: '#ef4444', label: 'User has made a questionable impression' };
+    if (rep < 10) return { count: 1, color: '#64748b', label: 'User is an unknown quantity' };
+    if (rep < 50) return { count: 1, color: '#10b981', label: 'User is on a distinguished road' };
+    if (rep < 100) return { count: 2, color: '#10b981', label: 'User will become famous soon enough' };
+    if (rep < 250) return { count: 3, color: '#10b981', label: 'User has a spectacular aura' };
+    if (rep < 500) return { count: 4, color: '#06b6d4', label: 'User is a beacon of light' };
+    if (rep < 1000) return { count: 5, color: '#06b6d4', label: 'User is a legend of the community' };
+    return { count: 5, color: '#f59e0b', label: 'Supreme Community Contributor' };
+  }
+
+  async function submitReputation() {
+    if (!repModalPost || submittingRep) return;
+    const recipient = repModalPost.user;
+    const amount = repAmount;
+    const reason = repReason;
+    submittingRep = true;
+    try {
+      await api.request('/reputation', {
+        method: 'POST',
+        body: JSON.stringify({
+          user_id: recipient.id,
+          amount,
+          reason: reason || 'Reputation for post'
+        })
+      });
+      toast.success(`+${amount} reputation given to ${recipient.username}!`);
+      posts = posts.map(p =>
+        p.user.id === recipient.id
+          ? { ...p, user: { ...p.user, reputation: (p.user.reputation || 0) + amount } }
+          : p
+      );
+      if (repModalPost?.user.id === recipient.id) repModalPost = null;
+    } catch (err: any) {
+      toast.error(err?.error || 'Failed to give reputation');
+    }
+    submittingRep = false;
+  }
+
+  // Presence is community-wide; thread-specific guest counts are unavailable.
+  let activeMembers = $derived(socketStore.onlineUsers || []);
+
+  // === Feature 1: Thread Voice Lounge (Discord SFU WebRTC) ===
+  let showVoiceDrawer = $state(false);
+  let voiceRooms = $state<any[]>([]);
+  let voiceConnecting = $state(false);
+  let isVoiceConnected = $derived(voiceStore.isInRoom);
+
+  async function toggleVoiceLounge() {
+    if (!auth.isLoggedIn) {
+      toast.error('Log in to join the voice lounge');
+      return;
+    }
+    showVoiceDrawer = !showVoiceDrawer;
+    if (showVoiceDrawer && voiceRooms.length === 0) {
+      try {
+        await voiceStore.loadRooms();
+        voiceRooms = voiceStore.rooms;
+      } catch { voiceRooms = []; }
+    }
+  }
+
+  async function connectToVoiceRoom(roomId: string) {
+    const socket = socketStore.getSocket();
+    if (!socket || !socketStore.connected) {
+      toast.error('Socket not connected');
+      return;
+    }
+    if (voiceConnecting) return;
+    voiceConnecting = true;
+    try {
+      await voiceStore.joinRoom(roomId, socket);
+      if (voiceStore.activeRoom?.id !== roomId || !voiceStore.localStream) {
+        await voiceStore.leaveRoom();
+        throw new Error('Unable to join this voice room');
+      }
+      toast.success('Connected to Voice Lounge!');
+    } catch (err: any) {
+      toast.error(err?.message || 'Failed to join voice lounge');
+    }
+    voiceConnecting = false;
+  }
+
+  function disconnectVoice() {
+    voiceStore.leaveRoom();
+    toast.success('Disconnected from voice lounge');
+  }
 
   // Edit state
   let editingPostId = $state<string | null>(null);
@@ -78,6 +211,47 @@
   let draftStatus = $state<'idle' | 'saving' | 'saved'>('idle');
   let draftTimer: ReturnType<typeof setTimeout> | null = null;
   let draftFadeTimer: ReturnType<typeof setTimeout> | null = null;
+  // Thread rating state (Feature 4)
+  let ratingStats = $state<{ average: number; count: number }>({ average: 0, count: 0 });
+  let userRating = $state<number | null>(null);
+  let ratingHover = $state<number | null>(null);
+  let isRating = $state(false);
+
+  async function loadThreadRating(threadId: string) {
+    try {
+      const data = await api.getThreadRating(threadId);
+      if (thread?.id !== threadId) return;
+      if (data?.rating) {
+        ratingStats = data.rating;
+      }
+      if (data?.user_rating !== undefined) {
+        userRating = data.user_rating;
+      }
+    } catch { /* ignore */ }
+  }
+
+  async function submitThreadRating(rating: number) {
+    if (!auth.isLoggedIn) {
+      toast.error('You must be logged in to rate threads');
+      return;
+    }
+    if (!thread || isRating) return;
+    const threadId = thread.id;
+    isRating = true;
+    try {
+      const data = await api.rateThread(threadId, rating);
+      if (thread?.id !== threadId) return;
+      if (data?.rating) {
+        ratingStats = data.rating;
+      }
+      userRating = rating;
+      toast.success(`Rated this thread ${rating} star${rating > 1 ? 's' : ''}!`);
+    } catch (err: any) {
+      toast.error(err?.error || 'Failed to submit rating');
+    }
+    finally { isRating = false; }
+  }
+
 
   $effect(() => {
     const slug = $page.params.slug;
@@ -93,7 +267,15 @@
         api.getThread(slug, pg),
         api.getPublicSettings().catch(() => null)
       ]);
+      const changedThread = thread?.id !== data.thread?.id;
       thread = data.thread;
+      if (changedThread) {
+        ratingStats = { average: 0, count: 0 };
+        userRating = null;
+        ratingHover = null;
+        clearThreadSearch();
+        repModalPost = null;
+      }
       posts = data.posts || [];
       subscription = data.subscription?.notification_level || null;
       currentPage = pg;
@@ -108,6 +290,14 @@
         loadSimilarThreads(thread.title);
         loadBookmarkIds();
         loadDraft(thread.id);
+        loadThreadRating(thread.id);
+        if (allForums.length === 0) {
+          try {
+            const fData = await api.getForums();
+            const cats = fData.categories || [];
+            allForums = cats.flatMap((c: any) => c.forums || []);
+          } catch { /* ignore */ }
+        }
 
         // Join real-time thread channel for live post updates
         if (currentThreadId && currentThreadId !== thread.id) {
@@ -375,7 +565,21 @@
     replyTextarea.focus();
   }
 
-  // Convert media URLs to embeds
+  // Classic smilies insert (Feature 1)
+  function insertSmilie(code: string) {
+    if (!replyTextarea) return;
+    const start = replyTextarea.selectionStart;
+    const before = replyTextarea.value.substring(0, start);
+    const after = replyTextarea.value.substring(replyTextarea.selectionEnd);
+    replyTextarea.value = before + code + after;
+    replyTextarea.dispatchEvent(new Event('input'));
+    replyBody = replyTextarea.value;
+    const newPos = start + code.length;
+    replyTextarea.setSelectionRange(newPos, newPos);
+    replyTextarea.focus();
+  }
+
+  // Convert media URLs to embeds & classic smilies
   function renderPostHtml(html: string | null, body: string): string {
     let content = html || escapeHtml(body);
     // Auto-embed YouTube
@@ -388,7 +592,7 @@
       /(?<![="'])(https?:\/\/[^\s<]+)/g,
       '<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>'
     );
-    return content;
+    return decoratePostHtml(content);
   }
 
 
@@ -421,11 +625,32 @@
     return username?.charAt(0)?.toUpperCase() || '?';
   }
 
+  function getRankInfo(user: any): { title: string; stars: number; color?: string } {
+    if (!user) return { title: 'Member', stars: 1, color: '#94a3b8' };
+    const group = (user.group_name || '').toLowerCase();
+    if (group.includes('admin') || user.is_admin) {
+      return { title: 'Administrator', stars: 5, color: '#ef4444' };
+    }
+    if (group.includes('mod') || user.is_moderator) {
+      return { title: 'Moderator', stars: 4, color: '#10b981' };
+    }
+    const count = user.post_count || 0;
+    if (count >= 1000) return { title: 'Grandmaster', stars: 5, color: '#f59e0b' };
+    if (count >= 500) return { title: 'Veteran', stars: 4, color: '#f59e0b' };
+    if (count >= 100) return { title: 'Senior Member', stars: 3, color: '#38bdf8' };
+    if (count >= 25) return { title: 'Member', stars: 2, color: '#a78bfa' };
+    return { title: 'Junior Member', stars: 1, color: '#94a3b8' };
+  }
+
   // === Quote Scroll & Highlight ===
+  function quoteNavigation(node: HTMLElement) {
+    node.addEventListener('click', handleQuoteClick);
+    return { destroy() { node.removeEventListener('click', handleQuoteClick); } };
+  }
+
   function handleQuoteClick(event: MouseEvent) {
-    const target = event.target as HTMLElement;
-    // Check if clicked element is a <cite> inside a bbcode-quote blockquote
-    if (target.tagName !== 'CITE') return;
+    const target = (event.target as HTMLElement).closest('cite');
+    if (!target) return;
     const blockquote = target.closest('.bbcode-quote');
     if (!blockquote) return;
 
@@ -586,9 +811,57 @@
           <span>{thread.view_count} views</span>
           <span>&middot;</span>
           <span>{thread.reply_count} replies</span>
+          <span class="stat-sep">&middot;</span>
+          <!-- Classic phpBB/vBulletin Thread Rating Widget (Feature 4) -->
+          <div class="thread-rating-box">
+            <span class="rating-label">Rating:</span>
+            <div class="stars-picker" role="group" aria-label="Rate this thread">
+              {#each [1, 2, 3, 4, 5] as star}
+                <button
+                  type="button"
+                  aria-label={`Rate ${star} out of 5 stars`}
+                  aria-pressed={userRating === star}
+                  class="star-btn"
+                  class:active={(ratingHover ?? userRating ?? Math.round(ratingStats.average)) >= star}
+                  class:user-picked={userRating !== null && userRating >= star}
+                  onmouseenter={() => { if (auth.isLoggedIn) ratingHover = star; }}
+                  onmouseleave={() => { ratingHover = null; }}
+                  onclick={() => submitThreadRating(star)}
+                  disabled={isRating || !auth.isLoggedIn}
+                  title={auth.isLoggedIn ? `Rate ${star} / 5` : 'Log in to rate'}
+                >
+                  &#9733;
+                </button>
+              {/each}
+            </div>
+            {#if ratingStats.count > 0}
+              <span class="rating-score">({ratingStats.average} / 5 &middot; {ratingStats.count} vote{ratingStats.count === 1 ? '' : 's'})</span>
+            {:else}
+              <span class="rating-score">(No votes)</span>
+            {/if}
+            {#if userRating}
+              <span class="user-rated-pill">You: {userRating}&#9733;</span>
+            {/if}
+          </div>
         </div>
-        {#if auth.isLoggedIn}
-          <div class="thread-actions">
+        <div class="thread-actions">
+          <button
+            class="btn-thread-search"
+            class:active={showThreadSearch}
+            onclick={() => { showThreadSearch = !showThreadSearch; }}
+            title="Search this thread"
+          >
+            🔍 Search
+          </button>
+          {#if auth.isLoggedIn}
+            <button
+              class="btn-voice-lounge"
+              class:connected={isVoiceConnected}
+              onclick={toggleVoiceLounge}
+              title={isVoiceConnected ? 'Connected to Voice Lounge' : 'Join or open Thread Voice Lounge'}
+            >
+              <span class="voice-icon">&#127911;</span> {isVoiceConnected ? 'Voice (Live)' : 'Voice Lounge'}
+            </button>
             {#if !thread.is_locked}
               <button class="btn-jump-reply" onclick={jumpToReply} title="Jump to reply box">↓ Reply</button>
             {/if}
@@ -602,10 +875,100 @@
               {isMuted ? 'Unmute' : 'Mute'}
             </button>
             <button class="btn-share" onclick={shareThread}>Share</button>
-          </div>
-        {/if}
+          {/if}
+        </div>
       </div>
     </div>
+
+    <!-- In-Thread Search Drawer (Feature 4) -->
+    {#if showThreadSearch}
+      <div class="in-thread-search-bar">
+        <div class="search-input-wrap">
+          <span class="search-icon">🔍</span>
+          <input
+            type="text"
+            aria-label="Filter posts on this page by text or author"
+            placeholder="Filter posts on this page by text or author..."
+            bind:value={threadSearchQuery}
+            class="thread-search-input"
+          />
+          {#if threadSearchQuery}
+            <button class="search-clear-btn" onclick={clearThreadSearch} title="Clear filter">&times;</button>
+          {/if}
+        </div>
+        <div class="search-results-count">
+          {#if threadSearchQuery.trim()}
+            Showing <strong>{displayedPosts.length}</strong> of <strong>{posts.length}</strong> posts on this page
+          {:else}
+            Type to filter posts in real-time
+          {/if}
+        </div>
+      </div>
+    {/if}
+
+    <!-- Voice Lounge Drawer (Feature 1) -->
+    {#if showVoiceDrawer}
+      <div class="thread-voice-stage">
+        <div class="voice-stage-header">
+          <div class="voice-stage-title">
+            <span class="live-pulse"></span>
+            <strong>Thread Voice Lounge</strong>
+            {#if isVoiceConnected}
+              <span class="badge-live">LIVE ({voiceStore.participants.length} connected)</span>
+            {/if}
+          </div>
+          <button class="stage-close-btn" onclick={() => showVoiceDrawer = false} title="Close drawer">&times;</button>
+        </div>
+
+        <div class="voice-stage-body">
+          {#if !isVoiceConnected}
+            <div class="voice-rooms-picker">
+              <p class="voice-hint">Join an open voice room for live discussion with fellow thread participants:</p>
+              {#if voiceRooms.length === 0}
+                <div class="voice-empty-state">
+                  <span>No general voice rooms open right now.</span>
+                  <a class="btn-sm btn-primary" href="/chat">Browse community chat</a>
+                </div>
+              {:else}
+                <div class="voice-rooms-grid">
+                  {#each voiceRooms as room}
+                    <button class="voice-room-card" onclick={() => connectToVoiceRoom(room.id)} disabled={voiceConnecting}>
+                      <div class="room-name">🔊 {room.name || room.id}</div>
+                      <div class="room-meta">{room.participant_count || 0} participants</div>
+                    </button>
+                  {/each}
+                </div>
+              {/if}
+            </div>
+          {:else}
+            <div class="voice-active-panel">
+              <div class="voice-peers-list">
+                {#each voiceStore.participants as participant (participant.user_id)}
+                  <div class="voice-peer-pill" class:self={participant.user_id === auth.user?.id}>
+                    <span class="peer-avatar">{getInitial(participant.username || 'User')}</span>
+                    <span class="peer-name">{participant.username}{participant.user_id === auth.user?.id ? ' (You)' : ''}</span>
+                    {#if participant.muted}<span class="peer-muted-icon">🔇</span>{/if}
+                    {#if participant.deafened}<span class="peer-muted-icon">🔕</span>{/if}
+                  </div>
+                {/each}
+              </div>
+
+              <div class="voice-controls-bar">
+                <button class="voice-ctrl-btn" class:muted={voiceStore.isMuted} onclick={() => voiceStore.toggleMute()}>
+                  {voiceStore.isMuted ? '🔇 Unmute' : '🎙️ Mute'}
+                </button>
+                <button class="voice-ctrl-btn" class:muted={voiceStore.isDeafened} onclick={() => voiceStore.toggleDeafen()}>
+                  {voiceStore.isDeafened ? '🔕 Undeafen' : '🎧 Deafen'}
+                </button>
+                <button class="voice-ctrl-btn btn-disconnect" onclick={disconnectVoice}>
+                  📞 Disconnect
+                </button>
+              </div>
+            </div>
+          {/if}
+        </div>
+      </div>
+    {/if}
 
     <!-- Pagination (top) -->
     {#if totalPages > 1}
@@ -619,16 +982,29 @@
           <button class="pg-btn" class:active={currentPage === totalPages} onclick={() => goToPage(totalPages)}>{totalPages}</button>
         {/if}
         <button class="pg-btn" disabled={currentPage >= totalPages} onclick={() => goToPage(currentPage + 1)}>Next &raquo;</button>
+        <form class="page-jump-form" onsubmit={(e) => { e.preventDefault(); handlePageJump(); }}>
+          <label for="jump-pg-top" class="jump-pg-label">Jump to:</label>
+          <input
+            id="jump-pg-top"
+            type="number"
+            min="1"
+            max={totalPages}
+            placeholder="#"
+            bind:value={jumpPageVal}
+            class="jump-pg-input"
+          />
+          <button type="submit" class="jump-pg-go">Go</button>
+        </form>
       </div>
     {/if}
 
     <ThreadModToolbar threadId={thread.id} isLocked={thread.is_locked} isPinned={thread.is_pinned} isHidden={thread.is_hidden ?? false} onUpdate={() => loadThread(thread.slug)} />
 
     <!-- Posts -->
-    <!-- svelte-ignore a11y-click-events-have-key-events -->
-    <div class="posts-list" onclick={handleQuoteClick} role="list">
-      {#each posts as post, idx (post.id)}
-        <div class="post-box" id="post-{post.id}">
+    <div class="posts-list" use:quoteNavigation role="list">
+      {#each displayedPosts as post, idx (post.id)}
+        {@const repMeta = getReputationMeta(post.user.reputation || 0)}
+        <div class="post-box" role="listitem" id="post-{post.id}">
           <div class="post-user-panel" style:position="relative">
             {#if post.user.postbit_background_url}
               <div class="custom-bg" style="background-image: url({post.user.postbit_background_url}); opacity: {post.user.postbit_background_opacity ?? 0.15};"></div>
@@ -648,6 +1024,14 @@
             {#if post.user.group_name}
               <div class="user-title" style:color={post.user.username_color || undefined}>{post.user.group_name}</div>
             {/if}
+            {#if post.user}
+              {@const rank = getRankInfo(post.user)}
+              <div class="rank-stars" title="{rank.title} ({rank.stars} / 5 stars)" style:color={rank.color || 'var(--accent)'}>
+                {#each Array.from({ length: rank.stars }) as _}
+                  <span class="rank-star">&#9733;</span>
+                {/each}
+              </div>
+            {/if}
             <div class="user-stats">
               <div class="stat-line">Posts: <strong>{post.user.post_count}</strong></div>
               <div class="stat-line">Threads: <strong>{post.user.thread_count || 0}</strong></div>
@@ -656,6 +1040,15 @@
                 <div class="stat-line loc">{post.user.location}</div>
               {/if}
               <div class="stat-line joined">Joined {new Date(post.user.inserted_at).toLocaleDateString()}</div>
+            </div>
+            <!-- Classic vBulletin/phpBB Reputation Bar & Level (Feature 2) -->
+            <div class="rep-bar-wrap" title="{repMeta.label} ({post.user.reputation || 0} reputation)">
+              <div class="rep-blocks">
+                {#each Array.from({ length: repMeta.count }) as _}
+                  <span class="rep-block" style:background-color={repMeta.color} style:box-shadow="0 0 5px {repMeta.color}88"></span>
+                {/each}
+              </div>
+              <span class="rep-level-text" style:color={repMeta.color}>{repMeta.label}</span>
             </div>
             <div class="user-online-status">
               <span class="online-dot" class:online={post.user.is_online}></span>
@@ -715,6 +1108,11 @@
 
             <div class="post-footer">
               <button class="action-btn" class:liked={false} onclick={() => toggleLike(post)}>&#128077; Like ({post.like_count})</button>
+              {#if auth.isLoggedIn && auth.user?.id !== post.user.id}
+                <button class="action-btn rep-action-btn" onclick={() => openRepModal(post)} title="Give reputation to {post.user.username}">
+                  &#9733; +Rep
+                </button>
+              {/if}
               {#if auth.isLoggedIn}
                 <button class="action-btn" class:bookmarked={bookmarkedPostIds.has(post.id)} onclick={() => toggleBookmark(post.id)} title={bookmarkedPostIds.has(post.id) ? 'Remove bookmark' : 'Bookmark post'}>
                   {bookmarkedPostIds.has(post.id) ? '🔖' : '🔖'} {bookmarkedPostIds.has(post.id) ? 'Saved' : 'Save'}
@@ -740,6 +1138,12 @@
           </div>
         </div>
       {/each}
+      {#if displayedPosts.length === 0}
+        <div class="no-thread-matches">
+          <p>No posts matching "<strong>{threadSearchQuery}</strong>" found on page {currentPage}.</p>
+          <button class="btn-sm btn-primary" onclick={clearThreadSearch}>Clear Search</button>
+        </div>
+      {/if}
     </div>
 
     <!-- Pagination (bottom) -->
@@ -754,18 +1158,29 @@
           <button class="pg-btn" class:active={currentPage === totalPages} onclick={() => goToPage(totalPages)}>{totalPages}</button>
         {/if}
         <button class="pg-btn" disabled={currentPage >= totalPages} onclick={() => goToPage(currentPage + 1)}>Next &raquo;</button>
+        <form class="page-jump-form" onsubmit={(e) => { e.preventDefault(); handlePageJump(); }}>
+          <label for="jump-pg-bottom" class="jump-pg-label">Jump to:</label>
+          <input
+            id="jump-pg-bottom"
+            type="number"
+            min="1"
+            max={totalPages}
+            placeholder="#"
+            bind:value={jumpPageVal}
+            class="jump-pg-input"
+          />
+          <button type="submit" class="jump-pg-go">Go</button>
+        </form>
       </div>
     {/if}
 
     <!-- Edit History Modal -->
     {#if historyPostId}
-      <!-- svelte-ignore a11y-click-events-have-key-events -->
-      <div class="modal-overlay" onclick={() => historyPostId = null} role="dialog" tabindex="-1">
-        <!-- svelte-ignore a11y-click-events-have-key-events -->
-        <div class="modal-content" onclick={(e) => e.stopPropagation()} role="document" tabindex="-1">
+      <dialog class="modal-overlay" data-modal="overlay" use:modal={() => historyPostId = null}  >
+        <div class="modal-content"   >
           <div class="modal-header">
             <h3>Edit History</h3>
-            <button class="modal-close" onclick={() => historyPostId = null}>&times;</button>
+            <button aria-label="Close" class="modal-close" onclick={() => historyPostId = null}>&times;</button>
           </div>
           {#if loadingHistory}
             <p class="loading-text">Loading...</p>
@@ -788,7 +1203,55 @@
             </div>
           {/if}
         </div>
-      </div>
+      </dialog>
+    {/if}
+
+    <!-- Reputation Award Modal (Feature 2) -->
+    {#if repModalPost}
+      <dialog class="modal-overlay" data-modal="overlay" use:modal={() => repModalPost = null}  >
+        <div class="modal-content rep-modal-content"   >
+          <div class="modal-header">
+            <h3>Award Reputation to {repModalPost.user.username}</h3>
+            <button aria-label="Close" class="modal-close" onclick={() => repModalPost = null}>&times;</button>
+          </div>
+          <div class="rep-modal-body">
+            <p class="rep-modal-desc">
+              What do you think of <strong>{repModalPost.user.username}</strong>'s post?
+            </p>
+            <div class="rep-amount-picker">
+              <label class="rep-radio-label">
+                <input type="radio" bind:group={repAmount} value={1} />
+                <span>+1 Rep (Approve / Helpful)</span>
+              </label>
+              <label class="rep-radio-label">
+                <input type="radio" bind:group={repAmount} value={2} />
+                <span>+2 Rep (Exceptional Contribution)</span>
+              </label>
+              <label class="rep-radio-label">
+                <input type="radio" bind:group={repAmount} value={5} />
+                <span>+5 Rep (Masterpiece / Essential Guide)</span>
+              </label>
+            </div>
+            <div class="rep-comment-field">
+              <label for="rep-reason-input" class="rep-input-label">Comment / Note (optional):</label>
+              <input
+                id="rep-reason-input"
+                type="text"
+                maxlength="150"
+                placeholder="e.g. Great advice, thank you!"
+                bind:value={repReason}
+                class="rep-input"
+              />
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button class="btn-sm" onclick={() => repModalPost = null}>Cancel</button>
+            <button class="btn-sm btn-primary" onclick={submitReputation} disabled={submittingRep}>
+              {submittingRep ? 'Submitting...' : 'Add Reputation'}
+            </button>
+          </div>
+        </div>
+      </dialog>
     {/if}
 
     <!-- Reply box -->
@@ -814,6 +1277,7 @@
           <textarea bind:value={replyBody} bind:this={replyTextarea} placeholder="Write your reply... Use @ to mention users, paste images from clipboard" rows="6" class="reply-textarea" oninput={scheduleDraftSave} onpaste={handlePaste}></textarea>
           <MentionAutocomplete bind:textarea={replyTextarea} />
         </div>
+        <SmiliesTray onSelect={insertSmilie} />
         {#if pasteUploading}
           <div class="draft-indicator saving">Uploading image...</div>
         {:else if draftStatus === 'saving'}
@@ -843,6 +1307,58 @@
         <a href="/auth/login">Login</a> or <a href="/auth/register">Register</a> to reply
       </div>
     {/if}
+
+    <!-- Classic phpBB/vBulletin Forum Jump -->
+    {#if allForums.length > 0}
+      <div class="thread-jump-bar">
+        <label for="thread-jump-select" class="jump-label">Forum Jump:</label>
+        <select id="thread-jump-select" class="sub-select jump-select" onchange={(e) => {
+          const val = (e.target as HTMLSelectElement).value;
+          if (val) window.location.href = `/forums/${val}`;
+        }}>
+          <option value="">-- Jump to a Forum --</option>
+          {#each allForums as f}
+            <option value={f.slug} selected={f.id === thread?.forum?.id}>{f.name}</option>
+          {/each}
+        </select>
+      </div>
+    {/if}
+
+    <!-- Currently Active Users Across the Community (Feature 3) -->
+    <div class="active-viewers-card">
+      <div class="active-viewers-header">
+        <span class="active-viewers-icon">&#128101;</span>
+        <span class="active-viewers-title">Currently Active Users Across the Community</span>
+        <span class="active-viewers-count">({activeMembers.length} member{activeMembers.length === 1 ? '' : 's'})</span>
+      </div>
+      <div class="active-viewers-list">
+        {#if activeMembers.length === 0}
+          <span class="viewer-guest-only">No member presence is available right now.</span>
+        {:else}
+          {#each activeMembers as member, idx}
+            <a
+              href="/profile/{member.slug || member.username}"
+              class="active-viewer-link"
+              style:color={member.username_color || 'var(--accent)'}
+            >
+              {member.username}
+            </a>{#if idx < activeMembers.length - 1}<span class="viewer-comma">, </span>{/if}
+          {/each}
+        {/if}
+      </div>
+    </div>
+
+    <!-- Classic Posting Rules Box (phpBB/vBulletin style - Feature 3) -->
+    <div class="thread-posting-rules-wrap">
+      <ForumPostingRules
+        canPostThread={!thread.forum?.is_locked}
+        canReply={!thread.is_locked}
+        canAttach={true}
+        canEdit={true}
+        isLocked={thread.is_locked}
+        editTimeLimit={postEditTimeLimit}
+      />
+    </div>
 
     </div><!-- end thread-main -->
 
@@ -905,6 +1421,7 @@
 </div>
 
 <style>
+  :global(.quote-author-link) { padding: 0; border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; text-decoration: underline; }
   .thread-view { display: flex; flex-direction: column; gap: 8px; }
   .thread-layout { flex-direction: row; flex-wrap: wrap; }
   .thread-main { flex: 1; min-width: 0; max-width: 100%; display: flex; flex-direction: column; gap: 8px; }
@@ -1031,9 +1548,28 @@
   .custom-bg { position: absolute; inset: 0; background-size: cover; background-position: center; background-repeat: no-repeat; pointer-events: none; z-index: 0; }
   .post-user-panel > :not(.custom-bg), .post-content-panel > :not(.custom-bg) { position: relative; z-index: 1; }
 
-  .post-signature { padding: 8px 16px 12px; overflow: hidden; }
-  .sig-divider { border-top: 1px dashed var(--border-color); margin-bottom: 8px; }
-  .sig-content { font-size: 12px; color: var(--text-secondary); line-height: 1.5; max-height: 120px; overflow: hidden; }
+  .post-signature { padding: 10px 16px 14px; overflow: hidden; margin-top: auto; }
+  .sig-divider {
+    width: 200px;
+    max-width: 40%;
+    border-top: 1px dashed var(--border-color);
+    margin: 14px 0 8px;
+    opacity: 0.75;
+    position: relative;
+  }
+  .sig-divider::before {
+    content: "_________________";
+    display: block;
+    font-size: 10px;
+    line-height: 0;
+    color: var(--text-muted);
+    letter-spacing: -1px;
+    margin-top: -5px;
+    margin-bottom: 5px;
+    opacity: 0.6;
+    font-family: monospace;
+  }
+  .sig-content { font-size: 11px; color: var(--text-muted); line-height: 1.5; max-height: 140px; overflow: hidden; }
   .post-signature > :not(.custom-bg) { position: relative; z-index: 1; }
 
   /* Postbit */
@@ -1094,8 +1630,6 @@
   @keyframes highlightFade { 0% { background: rgba(0, 212, 170, 0.15); } 100% { background: transparent; } }
 
   /* Similar Threads */
-  .similar-threads { background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius-lg); padding: 14px 16px; margin-top: 8px; }
-  .similar-heading { font-size: 12px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 10px; }
   .similar-list { display: flex; flex-direction: column; gap: 6px; }
   .similar-item { display: block; padding: 8px 10px; border: 1px solid var(--border-color); border-radius: var(--radius); text-decoration: none; transition: background 0.15s, border-color 0.15s; }
   .similar-item:hover { background: var(--bg-hover); border-color: var(--accent); }
@@ -1153,5 +1687,579 @@
   @media (max-width: 480px) {
     .thread-title { font-size: 16px; }
     :global(.post-body) { font-size: 13px; }
+  }
+
+  /* === phpBB/vBulletin Classic Rank Stars / Pips === */
+  .rank-stars {
+    display: flex;
+    justify-content: center;
+    gap: 2px;
+    font-size: 12px;
+    margin: 2px 0 5px;
+    text-shadow: 0 0 6px currentColor;
+    cursor: default;
+    user-select: none;
+  }
+  .rank-star {
+    display: inline-block;
+    line-height: 1;
+  }
+
+  /* === Thread Bottom Forum Jump === */
+  .thread-jump-bar {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius);
+    margin-top: 10px;
+  }
+  .jump-label {
+    font-size: 12px;
+    color: var(--text-muted);
+    font-weight: 600;
+  }
+  .jump-select {
+    max-width: 240px;
+  }
+
+  /* === Thread Rating Widget (Feature 4) === */
+  .thread-rating-box {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 11px;
+    background: var(--bg-tertiary);
+    padding: 3px 8px;
+    border-radius: var(--radius);
+    border: 1px solid var(--border-color);
+  }
+  .rating-label {
+    color: var(--text-muted);
+    font-weight: 600;
+  }
+  .stars-picker {
+    display: inline-flex;
+    align-items: center;
+    gap: 1px;
+  }
+  .star-btn {
+    background: none;
+    border: none;
+    padding: 0;
+    margin: 0;
+    color: var(--text-muted);
+    font-size: 13px;
+    cursor: pointer;
+    line-height: 1;
+    transition: color 0.15s, transform 0.1s;
+  }
+  .star-btn:hover:not(:disabled) {
+    transform: scale(1.2);
+  }
+  .star-btn.active {
+    color: #f59e0b;
+    text-shadow: 0 0 4px rgba(245, 158, 11, 0.4);
+  }
+  .star-btn.user-picked {
+    color: #eab308;
+  }
+  .star-btn:disabled {
+    cursor: default;
+  }
+  .rating-score {
+    color: var(--text-secondary);
+    font-size: 11px;
+  }
+  .user-rated-pill {
+    background: rgba(245, 158, 11, 0.15);
+    border: 1px solid rgba(245, 158, 11, 0.3);
+    color: #f59e0b;
+    font-size: 10px;
+    font-weight: 700;
+    padding: 1px 5px;
+    border-radius: 8px;
+    margin-left: 2px;
+  }
+
+  .thread-posting-rules-wrap {
+    margin-top: 12px;
+    max-width: 520px;
+  }
+
+  :global(.forum-smilie) {
+    display: inline-block;
+    font-size: 1.15em;
+    vertical-align: -0.15em;
+    margin: 0 1px;
+    line-height: 1;
+  }
+
+  /* === Feature 4: Thread Search & Quick Page Jump Styles === */
+  .btn-thread-search {
+    font-size: 11px;
+    font-weight: 600;
+    padding: 4px 10px;
+    border-radius: var(--radius);
+    background: var(--bg-tertiary);
+    color: var(--text-secondary);
+    border: 1px solid var(--border-color);
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .btn-thread-search:hover {
+    background: var(--bg-hover);
+    color: var(--text-primary);
+  }
+  .btn-thread-search.active {
+    background: var(--accent-glow);
+    color: var(--accent);
+    border-color: var(--border-accent);
+  }
+
+  .in-thread-search-bar {
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    padding: 10px 14px;
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .search-input-wrap {
+    position: relative;
+    display: flex;
+    align-items: center;
+    flex: 1;
+    min-width: 240px;
+  }
+  .search-icon {
+    position: absolute;
+    left: 10px;
+    font-size: 13px;
+    pointer-events: none;
+    opacity: 0.6;
+  }
+  .thread-search-input {
+    width: 100%;
+    background: var(--bg-input);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius);
+    padding: 7px 32px 7px 30px;
+    font-size: 12px;
+    color: var(--text-primary);
+  }
+  .thread-search-input:focus {
+    border-color: var(--accent);
+    outline: none;
+  }
+  .search-clear-btn {
+    position: absolute;
+    right: 8px;
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    font-size: 16px;
+    cursor: pointer;
+    line-height: 1;
+  }
+  .search-results-count {
+    font-size: 11px;
+    color: var(--text-muted);
+  }
+  .no-thread-matches {
+    padding: 32px;
+    text-align: center;
+    background: var(--bg-card);
+    border: 1px dashed var(--border-color);
+    border-radius: var(--radius-lg);
+    color: var(--text-muted);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .page-jump-form {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin-left: 8px;
+  }
+  .jump-pg-label {
+    font-size: 11px;
+    color: var(--text-muted);
+    font-weight: 600;
+  }
+  .jump-pg-input {
+    width: 44px;
+    background: var(--bg-input);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius);
+    padding: 3px 6px;
+    font-size: 11px;
+    color: var(--text-primary);
+    text-align: center;
+  }
+  .jump-pg-input:focus {
+    border-color: var(--accent);
+    outline: none;
+  }
+  .jump-pg-go {
+    padding: 3px 8px;
+    font-size: 11px;
+    font-weight: 600;
+    border-radius: var(--radius);
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .jump-pg-go:hover {
+    background: var(--accent);
+    color: var(--bg-primary);
+    border-color: var(--accent);
+  }
+
+  /* === Feature 1: Thread Voice Lounge (Discord WebRTC) Styles === */
+  .btn-voice-lounge {
+    font-size: 11px;
+    font-weight: 600;
+    padding: 4px 10px;
+    border-radius: var(--radius);
+    background: rgba(99, 102, 241, 0.15);
+    border: 1px solid rgba(99, 102, 241, 0.35);
+    color: #818cf8;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    transition: all 0.15s;
+  }
+  .btn-voice-lounge:hover {
+    background: rgba(99, 102, 241, 0.25);
+    color: #a5b4fc;
+  }
+  .btn-voice-lounge.connected {
+    background: rgba(16, 185, 129, 0.2);
+    border-color: #10b981;
+    color: #10b981;
+  }
+
+  .thread-voice-stage {
+    background: linear-gradient(180deg, rgba(30, 27, 75, 0.45) 0%, var(--bg-card) 100%);
+    border: 1px solid rgba(99, 102, 241, 0.35);
+    border-radius: var(--radius-lg);
+    padding: 14px;
+    margin-bottom: 12px;
+  }
+  .voice-stage-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+  }
+  .voice-stage-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: var(--text-primary);
+  }
+  .live-pulse {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #10b981;
+    box-shadow: 0 0 8px #10b981;
+  }
+  .badge-live {
+    background: rgba(16, 185, 129, 0.2);
+    color: #10b981;
+    border: 1px solid rgba(16, 185, 129, 0.4);
+    font-size: 10px;
+    font-weight: 700;
+    padding: 1px 6px;
+    border-radius: 8px;
+  }
+  .stage-close-btn {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    font-size: 18px;
+    cursor: pointer;
+    line-height: 1;
+  }
+  .voice-hint {
+    color: var(--text-secondary);
+    font-size: 12px;
+    margin-bottom: 8px;
+  }
+  .voice-empty-state {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 0;
+    color: var(--text-muted);
+    font-size: 12px;
+  }
+  .voice-rooms-grid {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .voice-room-card {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius);
+    padding: 8px 12px;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .voice-room-card:hover {
+    border-color: #818cf8;
+    background: rgba(99, 102, 241, 0.1);
+  }
+  .room-name {
+    font-weight: 700;
+    font-size: 12px;
+    color: var(--text-primary);
+  }
+  .room-meta {
+    font-size: 11px;
+    color: var(--text-muted);
+  }
+  .voice-active-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .voice-peers-list {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .voice-peer-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    border-radius: 16px;
+    padding: 4px 10px;
+    font-size: 11px;
+    color: var(--text-secondary);
+  }
+  .voice-peer-pill.self {
+    border-color: #818cf8;
+    background: rgba(99, 102, 241, 0.15);
+    color: var(--text-primary);
+  }
+  .peer-avatar {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: var(--accent);
+    color: var(--bg-primary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 9px;
+  }
+  .peer-name {
+    font-weight: 600;
+  }
+  .peer-muted-icon {
+    font-size: 10px;
+  }
+  .voice-controls-bar {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    margin-top: 4px;
+  }
+  .voice-ctrl-btn {
+    padding: 5px 12px;
+    font-size: 11px;
+    font-weight: 600;
+    border-radius: var(--radius);
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .voice-ctrl-btn:hover {
+    background: var(--bg-hover);
+    color: var(--text-primary);
+  }
+  .voice-ctrl-btn.muted {
+    background: rgba(239, 68, 68, 0.15);
+    border-color: rgba(239, 68, 68, 0.4);
+    color: var(--danger);
+  }
+  .btn-disconnect {
+    background: rgba(239, 68, 68, 0.2);
+    border-color: var(--danger);
+    color: #f87171;
+  }
+  .btn-disconnect:hover {
+    background: var(--danger);
+    color: white;
+  }
+
+  /* === Feature 2: Classic vBulletin/phpBB Reputation Bar & Modal === */
+  .rep-bar-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    margin: 6px 0 2px 0;
+    width: 100%;
+    cursor: help;
+  }
+  .rep-blocks {
+    display: flex;
+    gap: 3px;
+    justify-content: center;
+    align-items: center;
+  }
+  .rep-block {
+    width: 12px;
+    height: 7px;
+    border-radius: 1px;
+    display: inline-block;
+    border: 1px solid rgba(0, 0, 0, 0.3);
+  }
+  .rep-level-text {
+    font-size: 9px;
+    font-weight: 600;
+    text-align: center;
+    line-height: 1.1;
+    max-width: 120px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .rep-action-btn {
+    color: #10b981;
+    font-weight: 700;
+  }
+  .rep-action-btn:hover {
+    background: rgba(16, 185, 129, 0.15);
+    border-color: #10b981;
+  }
+  .rep-modal-content {
+    max-width: 440px;
+  }
+  .rep-modal-body {
+    padding: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .rep-modal-desc {
+    font-size: 13px;
+    color: var(--text-secondary);
+    margin: 0;
+  }
+  .rep-amount-picker {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    background: var(--bg-tertiary);
+    padding: 10px;
+    border-radius: var(--radius);
+    border: 1px solid var(--border-color);
+  }
+  .rep-radio-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: var(--text-primary);
+    cursor: pointer;
+  }
+  .rep-comment-field {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .rep-input-label {
+    font-size: 11px;
+    color: var(--text-muted);
+    font-weight: 600;
+  }
+  .rep-input {
+    background: var(--bg-input);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius);
+    padding: 6px 10px;
+    font-size: 12px;
+    color: var(--text-primary);
+    width: 100%;
+  }
+  .rep-input:focus {
+    border-color: var(--accent);
+    outline: none;
+  }
+
+  /* === Feature 3: Currently Active Users Viewing Thread Styles === */
+  .active-viewers-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    padding: 10px 14px;
+    margin-top: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .active-viewers-header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--text-heading);
+  }
+  .active-viewers-icon {
+    font-size: 14px;
+  }
+  .active-viewers-count {
+    font-weight: 400;
+    color: var(--text-muted);
+    font-size: 11px;
+    margin-left: 4px;
+  }
+  .active-viewers-list {
+    font-size: 12px;
+    line-height: 1.5;
+    color: var(--text-secondary);
+  }
+  .viewer-guest-only {
+    color: var(--text-muted);
+    font-style: italic;
+  }
+  .active-viewer-link {
+    font-weight: 600;
+    text-decoration: none;
+  }
+  .active-viewer-link:hover {
+    text-decoration: underline;
+  }
+  .viewer-comma {
+    color: var(--text-muted);
   }
 </style>

@@ -1,4 +1,5 @@
 <script lang="ts">
+  const a11yId = $props.id();
   import { moderation, type ContentPolicy } from '$lib/stores/moderation.svelte';
 
   let loaded = $state(false);
@@ -185,20 +186,20 @@
         <p class="field-help">Override global auto-escalation thresholds for this forum. Leave defaults to use global values.</p>
         <div class="form-row">
           <div class="form-group">
-            <label>Cooldown (pts)</label>
-            <input type="number" bind:value={form.escalation_overrides.cooldown_threshold} min="1" />
+            <label for={`${a11yId}-field-1`}>Cooldown (pts)</label>
+            <input id={`${a11yId}-field-1`} type="number" bind:value={form.escalation_overrides.cooldown_threshold} min="1" />
           </div>
           <div class="form-group">
-            <label>Read-only (pts)</label>
-            <input type="number" bind:value={form.escalation_overrides.read_only_threshold} min="1" />
+            <label for={`${a11yId}-field-2`}>Read-only (pts)</label>
+            <input id={`${a11yId}-field-2`} type="number" bind:value={form.escalation_overrides.read_only_threshold} min="1" />
           </div>
           <div class="form-group">
-            <label>Temp Ban (pts)</label>
-            <input type="number" bind:value={form.escalation_overrides.temp_ban_threshold} min="1" />
+            <label for={`${a11yId}-field-3`}>Temp Ban (pts)</label>
+            <input id={`${a11yId}-field-3`} type="number" bind:value={form.escalation_overrides.temp_ban_threshold} min="1" />
           </div>
           <div class="form-group">
-            <label>Perma Ban (pts)</label>
-            <input type="number" bind:value={form.escalation_overrides.permanent_ban_threshold} min="1" />
+            <label for={`${a11yId}-field-4`}>Perma Ban (pts)</label>
+            <input id={`${a11yId}-field-4`} type="number" bind:value={form.escalation_overrides.permanent_ban_threshold} min="1" />
           </div>
         </div>
       </fieldset>
@@ -306,8 +307,7 @@
   }
 
   .form-group input,
-  .form-group textarea,
-  .form-group select {
+  .form-group textarea {
     width: 100%;
     padding: 8px 12px;
     border: 1px solid var(--border-color);

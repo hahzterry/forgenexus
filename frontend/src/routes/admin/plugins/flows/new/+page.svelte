@@ -1,4 +1,5 @@
 <script lang="ts">
+  const a11yId = $props.id();
   import { goto } from '$app/navigation';
   import { plugins } from '$lib/stores/plugins.svelte';
 
@@ -102,16 +103,16 @@
 
   <div class="form-card">
     <div class="form-group">
-      <label>Name</label>
-      <input type="text" bind:value={name} placeholder="My Awesome Flow" />
+      <label for={`${a11yId}-field-1`}>Name</label>
+      <input id={`${a11yId}-field-1`} type="text" bind:value={name} placeholder="My Awesome Flow" />
     </div>
     <div class="form-group">
-      <label>Description</label>
-      <textarea bind:value={description} rows="2" placeholder="What does this flow do?"></textarea>
+      <label for={`${a11yId}-field-2`}>Description</label>
+      <textarea id={`${a11yId}-field-2`} bind:value={description} rows="2" placeholder="What does this flow do?"></textarea>
     </div>
     <div class="form-group">
-      <label>Trigger Type</label>
-      <select bind:value={triggerType}>
+      <label for={`${a11yId}-field-3`}>Trigger Type</label>
+      <select id={`${a11yId}-field-3`} bind:value={triggerType}>
         {#each triggerTypes as t}
           <option value={t.value}>{t.label}</option>
         {/each}
@@ -122,8 +123,8 @@
     <!-- Trigger-specific configuration -->
     {#if triggerType === 'scheduled'}
       <div class="form-group">
-        <label>Schedule</label>
-        <select bind:value={cronPreset}>
+        <label for={`${a11yId}-field-4`}>Schedule</label>
+        <select id={`${a11yId}-field-4`} bind:value={cronPreset}>
           {#each cronPresets as p}
             <option value={p.value}>{p.label}</option>
           {/each}
@@ -131,8 +132,8 @@
       </div>
       {#if cronPreset === ''}
         <div class="form-group">
-          <label>Cron Expression</label>
-          <input type="text" bind:value={cronCustom} placeholder="0 * * * *" />
+          <label for={`${a11yId}-field-5`}>Cron Expression</label>
+          <input id={`${a11yId}-field-5`} type="text" bind:value={cronCustom} placeholder="0 * * * *" />
           <span class="hint">Format: minute hour day-of-month month day-of-week</span>
         </div>
       {:else}
@@ -141,31 +142,31 @@
 
     {:else if triggerType === 'on_custom_event'}
       <div class="form-group">
-        <label>Event Name</label>
-        <input type="text" bind:value={eventName} placeholder="my_custom_event" />
+        <label for={`${a11yId}-field-6`}>Event Name</label>
+        <input id={`${a11yId}-field-6`} type="text" bind:value={eventName} placeholder="my_custom_event" />
         <span class="hint">Used when another flow emits this event via the "Emit Custom Event" node</span>
       </div>
 
     {:else if triggerType === 'on_slash_command'}
       <div class="form-group">
-        <label>Command Name</label>
+        <label for={`${a11yId}-field-7`}>Command Name</label>
         <div class="input-prefix">
           <span class="prefix">/</span>
-          <input type="text" bind:value={commandName} placeholder="daily" />
+          <input id={`${a11yId}-field-7`} type="text" bind:value={commandName} placeholder="daily" />
         </div>
         <span class="hint">Users will type /{commandName || '...'} to trigger this flow</span>
       </div>
       <div class="form-group">
-        <label>Command Description</label>
-        <input type="text" bind:value={commandDescription} placeholder="Claim your daily reward" />
+        <label for={`${a11yId}-field-8`}>Command Description</label>
+        <input id={`${a11yId}-field-8`} type="text" bind:value={commandDescription} placeholder="Claim your daily reward" />
       </div>
 
     {:else if triggerType === 'webhook_received'}
       <div class="form-group">
-        <label>Webhook Path</label>
+        <label for={`${a11yId}-field-9`}>Webhook Path</label>
         <div class="input-prefix">
           <span class="prefix">/webhooks/</span>
-          <input type="text" bind:value={webhookPath} placeholder="my-hook" />
+          <input id={`${a11yId}-field-9`} type="text" bind:value={webhookPath} placeholder="my-hook" />
         </div>
         <span class="hint">External services will POST to this URL to trigger the flow</span>
       </div>
@@ -178,8 +179,8 @@
       </button>
       {#if showAdvanced}
         <div class="form-group">
-          <label>Raw Trigger Config JSON</label>
-          <textarea bind:value={advancedJson} rows="3" placeholder={'{}'}></textarea>
+          <label for={`${a11yId}-field-10`}>Raw Trigger Config JSON</label>
+          <textarea id={`${a11yId}-field-10`} bind:value={advancedJson} rows="3" placeholder={'{}'}></textarea>
           <span class="hint">Overrides the fields above when enabled</span>
         </div>
       {/if}
