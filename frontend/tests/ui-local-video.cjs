@@ -8,9 +8,9 @@ const API=process.env.FN_LOCAL_API_URL||'http://localhost:4001/api';
 for(const url of [BASE,API])if(!['localhost','127.0.0.1'].includes(new URL(url).hostname))throw Error('Loopback services required');
 const headers=process.env.FN_RATE_LIMIT_BYPASS_TOKEN?{'x-fn-ratelimit-bypass':process.env.FN_RATE_LIMIT_BYPASS_TOKEN}:{};
 const out=path.resolve(__dirname,'../test-results/video-live');fs.mkdirSync(out,{recursive:true});
-const state=JSON.parse(fs.readFileSync(path.resolve(__dirname,'../test-results/local-backend/live-state.json')));
-const peer=JSON.parse(fs.readFileSync(path.resolve(__dirname,'../test-results/voice-live/participant.json')));
-const room=JSON.parse(fs.readFileSync(path.resolve(__dirname,'../test-results/voice-live/room.json')));
+const state=JSON.parse(fs.readFileSync(process.env.FN_TEST_FIXTURE_DIR ? path.join(process.env.FN_TEST_FIXTURE_DIR,'member.json') : path.resolve(__dirname,'../test-results/local-backend/live-state.json')));
+const peer=JSON.parse(fs.readFileSync(process.env.FN_TEST_FIXTURE_DIR ? path.join(process.env.FN_TEST_FIXTURE_DIR,'participant.json') : path.resolve(__dirname,'../test-results/voice-live/participant.json')));
+const room=JSON.parse(fs.readFileSync(process.env.FN_TEST_FIXTURE_DIR ? path.join(process.env.FN_TEST_FIXTURE_DIR,'room.json') : path.resolve(__dirname,'../test-results/voice-live/room.json')));
 const title='ForgeNexus isolated screen-share test';
 const results=[],errors=[]; const push=results.push.bind(results);results.push=(s)=>{console.log('PASS',s);return push(s);};
 async function info(page){return page.evaluate(async()=>{
@@ -19,6 +19,7 @@ async function info(page){return page.evaluate(async()=>{
  return {inRoom:v.isInRoom,connecting:v.isConnecting,video:v.isVideoOn,sharing:v.isScreenSharing,camera:v.localStream?.getVideoTracks().map(t=>({id:t.id,state:t.readyState}))||[],screen:v.screenStream?.getVideoTracks().map(t=>({id:t.id,state:t.readyState,surface:t.getSettings().displaySurface}))||[],stats,tiles:[...document.querySelectorAll('.video-tile')].map(el=>{const video=el.querySelector('video');return {label:el.textContent.trim(),self:el.classList.contains('self'),width:video.videoWidth,height:video.videoHeight,time:video.currentTime,paused:video.paused,tracks:video.srcObject?.getVideoTracks().length||0};})};
 });}
 async function act(page,name,args){return page.evaluate(async({name,args})=>{const {voiceStore:v}=await import(performance.getEntriesByType('resource').find(e=>new URL(e.name).pathname==='/src/lib/stores/voice.svelte.ts')?.name||'/src/lib/stores/voice.svelte.ts');return v[name](...(args||[]));},{name,args});}
+async function readySocket(page){await expect.poll(()=>page.evaluate(async()=>{const resource=performance.getEntriesByType('resource').find(e=>new URL(e.name).pathname==='/src/lib/stores/socket.svelte.ts');if(!resource)return false;return (await import(resource.name)).socketStore.connected;})).toBe(true);}
 (async()=>{
  const browser=await chromium.launch({headless:false,args:['--use-fake-device-for-media-stream','--auto-accept-camera-and-microphone-capture','--autoplay-policy=no-user-gesture-required',`--auto-select-tab-capture-source-by-title=${title}`]});
  const pages=[],contexts=[];
@@ -39,7 +40,7 @@ const capture=navigator.mediaDevices.getDisplayMedia.bind(navigator.mediaDevices
    expect((await context.request.post(API+'/auth/login',{data:{email:credentials.email,password:credentials.password}})).status()).toBe(200);
    const token=await context.request.post(API+'/voice/rooms/'+room.id+'/token');expect(token.status()).toBe(200);expect(['localhost','127.0.0.1']).toContain(new URL((await token.json()).url).hostname);
    const page=await context.newPage();pages.push(page);page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()==='error'&&!m.text().includes('font')&&!m.text().includes('Failed to load resource'))console.log(m.text());});
-   await page.goto(BASE+'/threads/'+state.threadSlug);await expect(page.locator('.btn-voice-lounge')).toBeVisible();
+   await page.goto(BASE+'/threads/'+state.threadSlug);await expect(page.locator('.btn-voice-lounge')).toBeVisible();await readySocket(page);
    await page.locator('.btn-voice-lounge').click();const card=page.locator('.voice-room-card').filter({hasText:room.name});await card.click();
    const setup=page.getByRole('dialog',{name:'Join '+room.name});await expect(setup).toBeVisible();await expect(setup.getByRole('button',{name:'Join room',exact:true})).toBeEnabled();expect((await info(page)).inRoom).toBe(false);
    if(pages.length===1){

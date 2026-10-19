@@ -9,7 +9,10 @@
 		"preview": "vite preview",
 		"prepare": "svelte-kit sync || echo ''",
 		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
-		"check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch"
+		"check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
+		"test:browser": "node tests/ci/run.cjs browser",
+		"test:livekit": "node tests/ci/run.cjs livekit",
+		"test:ci-harness": "node tests/ci/guards.cjs"
 	},
 	"devDependencies": {
 		"@playwright/test": "^1.59.1",

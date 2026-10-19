@@ -13,11 +13,12 @@ const tone = process.env.FN_VOICE_TONE_PATH;
 if (!tone || !fs.existsSync(tone)) throw Error('FN_VOICE_TONE_PATH must identify generated test audio');
 const headers = process.env.FN_RATE_LIMIT_BYPASS_TOKEN ? { 'x-fn-ratelimit-bypass': process.env.FN_RATE_LIMIT_BYPASS_TOKEN } : {};
 const out = path.resolve(__dirname, '../test-results/voice-live'); fs.mkdirSync(out, { recursive:true });
-const member = JSON.parse(fs.readFileSync(path.resolve(__dirname,'../test-results/local-backend/live-state.json')));
-const roomFile = path.join(out,'room.json');
+const member = JSON.parse(fs.readFileSync(process.env.FN_TEST_FIXTURE_DIR ? path.join(process.env.FN_TEST_FIXTURE_DIR,'member.json') : path.resolve(__dirname,'../test-results/local-backend/live-state.json')));
+const roomFile = path.join(process.env.FN_TEST_FIXTURE_DIR || out,'room.json');
 let room = fs.existsSync(roomFile) ? JSON.parse(fs.readFileSync(roomFile)) : null;
-const secondFile=path.join(out,'participant.json');
+const secondFile=path.join(process.env.FN_TEST_FIXTURE_DIR || out,'participant.json');
 let second=fs.existsSync(secondFile)?JSON.parse(fs.readFileSync(secondFile)):null;
+if(process.env.FN_TEST_FIXTURE_DIR&&(!room||!second))throw Error('CI requires complete preseeded room and participant fixtures');
 let expectedOutage=false;
 const results=[], errors=[], controls=[], sockets=[];
 async function pageJoinConfirm(page){await page.getByRole('dialog').getByRole('button',{name:'Join room',exact:true}).click();}
@@ -29,6 +30,7 @@ async function snapshot(page) { return page.evaluate(async()=> {
   return { inRoom:v.isInRoom,roomId:v.activeRoom?.id,connecting:v.isConnecting,muted:v.isMuted,deafened:v.isDeafened,participants:v.participants.length,localTracks:v.localStream?.getAudioTracks().map(t=>({readyState:t.readyState,enabled:t.enabled}))||[],remoteTracks:streams.flatMap(s=>s.getAudioTracks().map(t=>({readyState:t.readyState,enabled:t.enabled}))),inbound,audio:[...document.querySelectorAll('audio[data-voice-user]')].map(a=>({paused:a.paused,time:a.currentTime,readyState:a.readyState,stream:!!a.srcObject}))};
 }); }
 async function leave(page) { await page.evaluate(async()=>{const {voiceStore}=await import(performance.getEntriesByType('resource').find(e=>new URL(e.name).pathname==='/src/lib/stores/voice.svelte.ts')?.name || '/src/lib/stores/voice.svelte.ts');await voiceStore.leaveRoom();}); }
+async function readySocket(page){await expect.poll(()=>page.evaluate(async()=>{const resource=performance.getEntriesByType('resource').find(e=>new URL(e.name).pathname==='/src/lib/stores/socket.svelte.ts');if(!resource)return false;return (await import(resource.name)).socketStore.connected;})).toBe(true);}
 (async()=>{
  const browser=await chromium.launch({args:['--use-fake-device-for-media-stream','--use-fake-ui-for-media-stream','--autoplay-policy=no-user-gesture-required',`--use-file-for-fake-audio-capture=${tone}`]});
  const contexts=[], pages=[];
@@ -64,7 +66,7 @@ async function leave(page) { await page.evaluate(async()=>{const {voiceStore}=aw
     const u=new URL(ws.url());sockets.push({page:index,host:u.host,path:u.pathname});
     if(u.port==='4001')ws.on('framereceived',frame=>{try{const msg=JSON.parse(String(frame.payload));if(msg[3]==='phx_reply' && msg[4]?.response?.livekit?.enabled)controls.push({page:index,url:msg[4].response.livekit.url});}catch{}});
    });
-   await page.goto(BASE+'/threads/'+member.threadSlug);await expect(page.locator('.btn-voice-lounge')).toBeVisible();
+   await page.goto(BASE+'/threads/'+member.threadSlug);await expect(page.locator('.btn-voice-lounge')).toBeVisible();await readySocket(page);
   }
   async function join(page){await page.locator('.btn-voice-lounge').click();await page.locator('.voice-room-card').filter({hasText:room.name}).click();await pageJoinConfirm(page);await expect(page.getByRole('button',{name:'📞 Disconnect',exact:true})).toBeVisible();await expect.poll(async()=>(await snapshot(page)).connecting).toBe(false);}
   await join(pages[0]);await join(pages[1]);

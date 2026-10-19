@@ -1,0 +1,26 @@
+ForgeNexus browser and LiveKit CI tests
+
+GitHub Actions keeps the existing backend tests and frontend check/build jobs, then runs:
+- Browser regressions: forum (8), refreshed UI (26), component accessibility (12), route accessibility (6).
+- Real integration: voice (11), video/pre-join/sharing (16), and Chat/Live entry/mobile setup (4).
+
+Run the same entry points locally from frontend:
+  npm run test:ci-harness
+  npm run test:browser
+  npm run test:livekit
+
+Prerequisites: npm dependencies and Playwright Chromium installed. The live command also needs Elixir/backend dependencies, local PostgreSQL on port 5432, and LIVEKIT_SERVER_PATH pointing to the LiveKit 1.13.10 server binary. PGHOST must be localhost or 127.0.0.1; PGUSER/PGPASSWORD use standard PostgreSQL configuration. The browser-only command needs no database or backend.
+
+On Linux, install Chromium with `npx playwright install --with-deps chromium`. Run the media command with `xvfb-run -a npm run test:livekit` because native browser-tab capture uses a headed browser. Windows uses the normal test-browser window. Camera/microphone media is generated, and screen capture selects only the uniquely named synthetic test tab.
+
+The runner starts and stops its own loopback Vite servers, backend, and native LiveKit. It refuses occupied service ports rather than reusing an unrelated service. Do not manually start the app first. On Windows, mix.bat is launched through PowerShell without interpolating unquoted arguments; cleanup targets only process trees created by this run.
+
+Each local media run defaults to a fresh forge_nexus_ci_<timestamp> database. FN_CI_DATABASE can choose another name matching forge_nexus_ci or forge_nexus_ci_<lowercase letters/digits>. Seeding refuses databases outside that namespace and databases containing users. The development and production databases are not used. Migrations create the schema; minimal fixtures create two verified users, one forum/thread, and one room without relying on admin/default passwords or saved local test state. CI database data is retained locally for inspection; choose a new name for another run. GitHub's PostgreSQL service is discarded with the job.
+
+LiveKit dev credentials are stored only in the isolated database. The rate-limit test token and account passwords are generated per run. Account credential files are private and removed during cleanup. Existing standalone tests continue to support their older local fixtures when FN_TEST_FIXTURE_DIR is unset; the CI runner always supplies complete fresh fixtures and fails closed if they are missing.
+
+Artifacts: frontend/test-results/ci-report/<browser|livekit>/ contains the current summary, allowlisted reports, and synthetic screenshots. GitHub uploads only that directory (seven-day retention), including on failure. Raw backend/server/test logs remain in ignored test-results/ci-private and are not uploaded. No fixtures, account passwords, environment dumps, or full service logs are publishable artifacts. Only reports created during the current run are copied, preventing stale successful reports from appearing after an early failure.
+
+Readiness checks, per-command timeouts, job timeouts, nonzero failure propagation, interruption cleanup, and always-uploaded summaries make missing services/test failures fail CI. The media suites run sequentially because they share two accounts and one room. This configuration has no push, deployment, publication, or production-secret step.
+
+The legacy API/E2E projects targeting port 4000 and the development-database-specific ui-local-backend.cjs are not included in these new jobs. The selected regression suites and real-media suites above are the portable, verified CI entry points.
