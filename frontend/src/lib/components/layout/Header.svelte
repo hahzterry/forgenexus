@@ -10,6 +10,8 @@
   import { api } from '$lib/api/client';
 
   let moreOpen = $state(false);
+  let desktopMore = $state<HTMLDetailsElement>();
+  let mobileMore = $state<HTMLDetailsElement>();
   let mobileMoreOpen = $state(false);
   let simpleNav = $derived(!auth.isLoggedIn || onboarding.owner !== auth.user?.id || onboarding.state?.navigation_mode !== 'full');
   let primary = $derived([{href:auth.isLoggedIn ? '/home' : '/',label:'Home'},{href:'/forums',label:'Forums'},{href:'/chat',label:'Chat'},{href:'/live',label:'Live'},{href:'/search',label:'Search'}]);
@@ -73,6 +75,9 @@
   });
 
   function closeMobileMenu() {
+    // Native details toggles can precede the asynchronous bound-state update.
+    if (desktopMore) desktopMore.open = false;
+    if (mobileMore) mobileMore.open = false;
     mobileMenuOpen = false; moreOpen = false; mobileMoreOpen = false;
   }
 </script>
@@ -102,7 +107,7 @@
         {#each extra as item}<a href={item.href} aria-current={current(item.href) ? 'page' : undefined}>{item.label}</a>{/each}
         <button class="navigation-switch" disabled={onboarding.saving} onclick={toggleNavigation}>Use simpler navigation</button>
       {:else}
-        <details class="nav-more" bind:open={moreOpen}>
+        <details class="nav-more" bind:this={desktopMore} bind:open={moreOpen}>
           <summary>More</summary><div class="more-links">
             {#each extra as item}<a href={item.href} aria-current={current(item.href) ? 'page' : undefined}>{item.label}</a>{/each}
             {#if auth.isLoggedIn}<button disabled={onboarding.loading || onboarding.saving || !onboarding.state} onclick={toggleNavigation}>Show full navigation</button>{/if}
@@ -154,7 +159,7 @@
     aria-label="Mobile navigation"
   >
     {#each primary as item}<a href={item.href} onclick={closeMobileMenu} aria-current={current(item.href) ? 'page' : undefined}>{item.label}</a>{/each}
-    <details class="mobile-more" bind:open={mobileMoreOpen}>
+    <details class="mobile-more" bind:this={mobileMore} bind:open={mobileMoreOpen}>
       <summary>More destinations</summary>
       {#each extra as item}<a href={item.href} onclick={closeMobileMenu} aria-current={current(item.href) ? 'page' : undefined}>{item.label}</a>{/each}
       {#if auth.isLoggedIn}<button class="mobile-menu-btn" disabled={onboarding.loading || onboarding.saving || !onboarding.state} onclick={toggleNavigation}>{simpleNav ? 'Show full navigation' : 'Use simpler navigation'}</button>{/if}

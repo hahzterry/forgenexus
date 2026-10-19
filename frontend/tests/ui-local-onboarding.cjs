@@ -28,6 +28,9 @@ const out='test-results/onboarding-live';fs.mkdirSync(out,{recursive:true});
  releaseSave();await pendingSave;
  await page.getByLabel('Navigation view').selectOption('simple');
  check('simple navigation emphasizes five destinations',await page.getByRole('navigation',{name:'Main navigation',exact:true}).locator(':scope > a').count()===5);
+ // Escape must close native details even before its queued toggle event updates the binding.
+ await page.evaluate(()=>{for(const selector of ['.nav-more','.mobile-more']){const details=document.querySelector(selector);details.open=true;window.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape'}));if(details.open)throw Error(selector+' remained open');}});
+ check('Escape closes menus before queued native toggle events',true);
  await page.getByLabel('Choose a forum').selectOption('ci-workshop');
  await page.getByRole('link',{name:'CI live media integration',exact:true}).click();await page.locator('.post-body').first().waitFor();
  check('guide opens a real discussion',page.url().includes(member.threadSlug));
