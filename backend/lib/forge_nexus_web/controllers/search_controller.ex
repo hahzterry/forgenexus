@@ -1,112 +1,59 @@
 defmodule ForgeNexusWeb.SearchController do
   use ForgeNexusWeb, :controller
+  import Ecto.Query
+  alias ForgeNexus.Repo
+  alias ForgeNexus.Accounts.User
+  alias ForgeNexus.Search.Results
 
-  alias ForgeNexus.Search
-  alias ForgeNexus.Forums
-
-  # GET /api/search?q=...&type=threads|posts&page=1&author=username
   def search(conn, params) do
-    query = Map.get(params, "q", "")
-    type = Map.get(params, "type", "threads")
-    page = Map.get(params, "page", "1") |> safe_to_integer(1)
-    author = Map.get(params, "author")
-    forum_id = Map.get(params, "forum_id")
-    limit = 25
-    offset = (page - 1) * limit
+    with {:ok, query} <- text(params["q"], 2, 200),
+         type when type in ["threads", "posts"] <- Map.get(params, "type", "threads"),
+         {:ok, author} <- text(params["author"] || "", 0, 100),
+         {:ok, forum_id} <- forum_id(params["forum_id"]) do
+      author_id =
+        if author != "",
+          do:
+            Repo.one(
+              from u in User,
+                where: fragment("lower(?) = lower(?)", u.username, ^author),
+                select: u.id,
+                limit: 1
+            )
 
-    if String.length(query) < 2 do
-      conn |> put_status(:bad_request) |> json(%{error: "Query must be at least 2 characters"})
+      opts = [
+        page: page(params["page"]),
+        author_id: author_id,
+        unknown_author: author != "" and is_nil(author_id),
+        forum_id: forum_id,
+        community_id: conn.assigns[:community_id] || ForgeNexus.Communities.default_community_id()
+      ]
+
+      json(conn, Results.fetch(query, type, opts))
     else
-      opts = [limit: limit, offset: offset]
-
-      # Build filter
-      filter =
-        cond do
-          forum_id && type == "threads" -> "forum_id = \"#{forum_id}\""
-          true -> nil
-        end
-
-      opts = if filter, do: Keyword.put(opts, :filter, filter), else: opts
-
-      result =
-        cond do
-          author -> Search.search_by_author(query, author, opts)
-          type == "posts" -> Search.search_posts(query, opts)
-          true -> Search.search_threads(query, opts)
-        end
-
-      case result do
-        {:ok, %{hits: hits, total: total}} ->
-          # Hydrate thread hits with full data
-          enriched =
-            if type == "threads" do
-              thread_ids = Enum.map(hits, & &1["id"])
-
-              threads =
-                Enum.map(thread_ids, fn id ->
-                  try do
-                    thread = Forums.get_thread!(id)
-                    thread_json(thread)
-                  rescue
-                    _ -> nil
-                  end
-                end)
-                |> Enum.reject(&is_nil/1)
-
-              threads
-            else
-              hits
-            end
-
-          conn |> json(%{results: enriched, total: total, page: page, type: type})
-
-        {:error, _} ->
-          # Fallback to pg_trgm search
-          if type == "threads" do
-            threads = Forums.find_similar_threads(query, forum_id, limit)
-
-            conn
-            |> json(%{
-              results: Enum.map(threads, &thread_json/1),
-              total: length(threads),
-              page: 1,
-              type: "threads",
-              fallback: true
-            })
-          else
-            conn |> json(%{results: [], total: 0, page: page, type: type})
-          end
-      end
+      _ ->
+        conn
+        |> put_status(:bad_request)
+        |> json(%{
+          error: "Use a 2–200 character query, a valid search type, author, and forum ID."
+        })
     end
   end
 
-  defp thread_json(thread) do
-    %{
-      id: thread.id,
-      title: thread.title,
-      slug: thread.slug,
-      reply_count: thread.reply_count,
-      view_count: thread.view_count,
-      inserted_at: thread.inserted_at,
-      last_post_at: thread.last_post_at,
-      forum:
-        if(Ecto.assoc_loaded?(thread.forum),
-          do: %{id: thread.forum.id, name: thread.forum.name, slug: thread.forum.slug}
-        ),
-      user:
-        if(Ecto.assoc_loaded?(thread.user),
-          do: %{id: thread.user.id, username: thread.user.username, slug: thread.user.slug}
-        )
-    }
+  defp text(value, min, max) when is_binary(value) do
+    value = String.trim(value)
+    if String.length(value) in min..max, do: {:ok, value}, else: :error
   end
 
-  defp safe_to_integer(val, default) when is_binary(val) do
-    case Integer.parse(val) do
-      {int, _} -> int
-      :error -> default
+  defp text(_, _, _), do: :error
+  defp forum_id(value) when value in [nil, ""], do: {:ok, nil}
+  defp forum_id(value), do: Ecto.UUID.cast(value)
+
+  defp page(value) when is_binary(value) do
+    case Integer.parse(value) do
+      {number, ""} -> number |> max(1) |> min(10_000)
+      _ -> 1
     end
   end
 
-  defp safe_to_integer(val, _default) when is_integer(val), do: val
-  defp safe_to_integer(_, default), do: default
+  defp page(_), do: 1
 end

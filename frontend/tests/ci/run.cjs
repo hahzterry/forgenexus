@@ -3,7 +3,7 @@ const {spawn,spawnSync}=require('node:child_process');
 const fs=require('node:fs'),path=require('node:path'),net=require('node:net'),crypto=require('node:crypto');
 const frontend=path.resolve(__dirname,'../..'),backend=path.resolve(frontend,'../backend');
 const mode=process.argv[2];
-if(!['browser','livekit'].includes(mode))throw Error('Use browser or livekit');
+if(!['browser','livekit','search'].includes(mode))throw Error('Use browser, livekit or search');
 const privateDir=path.join(frontend,'test-results/ci-private',mode);
 const reportDir=path.join(frontend,'test-results/ci-report',mode);
 fs.mkdirSync(privateDir,{recursive:true});
@@ -43,7 +43,14 @@ async function cleanup(){
  if(env.FN_TEST_FIXTURE_DIR)for(const name of ['member.json','participant.json','room.json'])fs.rmSync(path.join(env.FN_TEST_FIXTURE_DIR,name),{force:true});
 }
 for(const signal of ['SIGINT','SIGTERM'])process.on(signal,()=>{void cleanup().then(()=>process.exit(130));});
-async function freePort(port){await new Promise((resolve,reject)=>{const server=net.createServer();server.once('error',()=>reject(Error('Port '+port+' is already in use; no existing service will be reused')));server.listen(port,'127.0.0.1',()=>server.close(resolve));});}
+async function freePort(port){
+ for(const host of ['127.0.0.1','::1'])await new Promise((resolve,reject)=>{
+  const server=net.createServer();server.once('error',error=>{
+   if(host==='::1'&&['EADDRNOTAVAIL','EAFNOSUPPORT'].includes(error.code))resolve();
+   else reject(Error('Port '+port+' is already in use; no existing service will be reused'));
+  });server.listen(port,host,()=>server.close(resolve));
+ });
+}
 async function ready(url,child){
  const deadline=Date.now()+120000;
  while(Date.now()<deadline){
@@ -71,20 +78,21 @@ function tone(target){
  let passed=false;
  try{
   await freePort(5173);
-  if(mode==='livekit'){
-   for(const port of [4001,7880,7881,7882])await freePort(port);
+  if(mode!=='browser'){
+   for(const port of (mode==='livekit'?[4001,7880,7881,7882]:[4001,17700]))await freePort(port);
    const host=env.PGHOST||'localhost';if(!['localhost','127.0.0.1'].includes(host))throw Error('Only loopback PostgreSQL is allowed');
    if(env.PGPORT&&env.PGPORT!=='5432')throw Error('The development backend currently uses PostgreSQL port 5432');
    const database=env.FN_CI_DATABASE||'forge_nexus_ci_'+Date.now().toString(36);
    if(!/^forge_nexus_ci(?:_[a-z0-9]+)?$/.test(database))throw Error('Use a forge_nexus_ci database name, never a development/production database');
    Object.assign(env,{MIX_ENV:'dev',PGHOST:host,PGDATABASE:database,FN_CI_DATABASE:database,PORT:'4001',FN_RATE_LIMIT_BYPASS_TOKEN:crypto.randomBytes(24).toString('hex'),FN_TEST_FIXTURE_DIR:path.join(privateDir,'fixtures'),FN_VOICE_TONE_PATH:path.join(privateDir,'tone.wav')});
    delete env.PHX_SERVER;
-   const livekit=env.LIVEKIT_SERVER_PATH;if(!livekit||!fs.existsSync(livekit))throw Error('Set LIVEKIT_SERVER_PATH to the pinned local LiveKit server binary');
+   const livekit=env.LIVEKIT_SERVER_PATH;if(mode==='livekit'&&(!livekit||!fs.existsSync(livekit)))throw Error('Set LIVEKIT_SERVER_PATH to the pinned local LiveKit server binary');
    await command('database-create','mix',['ecto.create'],backend);
    await command('database-migrate','mix',['ecto.migrate'],backend);
    await command('fixtures','mix',['run',path.join(__dirname,'seed.exs')],backend);
-   const server=start('livekit',livekit,['--dev','--bind','127.0.0.1','--node-ip','127.0.0.1']);await ready('http://127.0.0.1:7880',server);
-   env.PHX_SERVER='true';const api=start('backend','mix',['phx.server'],backend);await ready('http://localhost:4001/api/voice/rooms',api);
+   if(mode==='livekit'){const server=start('livekit',livekit,['--dev','--bind','127.0.0.1','--node-ip','127.0.0.1']);await ready('http://127.0.0.1:7880',server);}
+   else await command('search-fixtures','mix',['run',path.join(__dirname,'search-seed.exs')],backend);
+   env.PHX_SERVER='true';const api=start('backend','mix',(mode==='search'?['run','--no-halt',path.join(__dirname,'search-server.exs')]:['phx.server']),backend);await ready('http://localhost:4001/api/voice/rooms',api);
    tone(env.FN_VOICE_TONE_PATH);
   }else await freePort(5174);
   const ui=start('frontend',process.execPath,['node_modules/vite/bin/vite.js','dev','--host','localhost','--port','5173','--strictPort']);await ready('http://localhost:5173/auth/login',ui);
@@ -94,6 +102,8 @@ function tone(target){
    await suite('refresh',['tests/ui-refresh.cjs']);
    await suite('accessibility',['tests/ui-accessibility.cjs']);
    await suite('accessibility-routes',['tests/ui-accessibility-routes.cjs']);
+  }else if(mode==='search'){
+   await suite('search',['tests/ui-local-search.cjs']);
   }else{
    // These use the same accounts and room: run sequentially, never in parallel.
    await suite('voice',['tests/ui-local-voice.cjs']);
@@ -106,7 +116,7 @@ function tone(target){
   await cleanup();
   // Only allowlisted non-credential reports are publishable; raw service logs stay private.
   fs.writeFileSync(path.join(reportDir,'summary.json'),JSON.stringify({mode,passed,results},null,2));
-  const allowed=mode==='browser'?['playwright','ui-refresh','accessibility','accessibility-routes']:['voice-live/results.json','video-live/results.json','video-live/prejoin-entry-results.json','video-live/prejoin.png','video-live/prejoin-mobile.png','video-live/expanded-share.png'];
+  const allowed=mode==='search'?['search-live/results.json']:mode==='browser'?['playwright','ui-refresh','accessibility','accessibility-routes']:['voice-live/results.json','video-live/results.json','video-live/prejoin-entry-results.json','video-live/prejoin.png','video-live/prejoin-mobile.png','video-live/expanded-share.png'];
   for(const relative of allowed){const source=path.join(frontend,'test-results',relative);if(fs.existsSync(source))copyRecent(source,path.join(reportDir,relative));}
  }
 })();

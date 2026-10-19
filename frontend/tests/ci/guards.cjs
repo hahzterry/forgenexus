@@ -7,8 +7,10 @@ function run(mode,extra={}){return new Promise((resolve,reject)=>{
  child.stdout.on('data',chunk=>output+=chunk);child.stderr.on('data',chunk=>output+=chunk);child.on('error',reject);child.on('close',code=>resolve({code,output}));
 });}
 (async()=>{
- const server=net.createServer(socket=>socket.end());await new Promise((resolve,reject)=>{server.once('error',reject);server.listen(5173,'127.0.0.1',resolve);});
- try{const result=await run('browser');assert.equal(result.code,1);assert.match(result.output,/Port 5173 is already in use/);assert.equal(server.listening,true);console.log('PASS occupied service is rejected and left running');}
+ for(const host of ['127.0.0.1','::1']){
+ const server=net.createServer(socket=>socket.end());await new Promise((resolve,reject)=>{server.once('error',reject);server.listen(5173,host,resolve);});
+ try{const result=await run('browser');assert.equal(result.code,1);assert.match(result.output,/Port 5173 is already in use/);assert.equal(server.listening,true);console.log('PASS occupied '+host+' service is rejected and left running');}
  finally{await new Promise(resolve=>server.close(resolve));}
+ }
  const result=await run('livekit',{FN_CI_DATABASE:'forge_nexus_dev',PGHOST:'localhost',PGPORT:'5432'});assert.equal(result.code,1);assert.match(result.output,/never a development\/production database/);console.log('PASS development database name is rejected before database access');
 })().catch(error=>{console.error(error);process.exitCode=1;});

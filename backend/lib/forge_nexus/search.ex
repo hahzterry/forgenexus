@@ -97,12 +97,17 @@ defmodule ForgeNexus.Search do
     body = if filter, do: Map.put(body, :filter, filter), else: body
     body = if sort, do: Map.put(body, :sort, sort), else: body
 
-    case post_json("/indexes/#{index}/search", body) do
-      {:ok, %{"hits" => hits, "estimatedTotalHits" => total}} ->
+    case post_json("/indexes/#{index}/search", body,
+           retry: false,
+           receive_timeout: 1_000,
+           connect_options: [timeout: 500]
+         ) do
+      {:ok, %{"hits" => hits, "estimatedTotalHits" => total}}
+      when is_list(hits) and is_integer(total) ->
         {:ok, %{hits: hits, total: total}}
 
-      {:ok, %{"hits" => hits}} ->
-        {:ok, %{hits: hits, total: length(hits)}}
+      {:ok, _} ->
+        {:error, :invalid_search_response}
 
       error ->
         error
@@ -204,8 +209,11 @@ defmodule ForgeNexus.Search do
 
   # === HTTP Helpers ===
 
-  defp post_json(path, body) do
-    case Req.post("#{base_url()}#{path}", json: body, headers: headers()) do
+  defp post_json(path, body, options \\ []) do
+    case Req.post(
+           "#{base_url()}#{path}",
+           Keyword.merge([json: body, headers: headers()], options)
+         ) do
       {:ok, %{status: status, body: body}} when status in 200..299 -> {:ok, body}
       {:ok, %{status: 202, body: body}} -> {:ok, body}
       {:ok, %{body: body}} -> {:error, body}

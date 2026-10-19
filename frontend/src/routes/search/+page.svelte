@@ -1,5 +1,6 @@
 <script lang="ts">
   const a11yId = $props.id();
+  import { untrack } from 'svelte';
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
   import { api } from '$lib/api/client';
@@ -11,54 +12,71 @@
   let total = $state(0);
   let currentPage = $state(1);
   let totalPages = $state(1);
-  const perPage = 20;
+  let fallback = $state(false);
+  let resultType = $state('threads');
+  let requestId = 0;
   let loading = $state(false);
   let searched = $state(false);
   let error = $state('');
 
-  // Load from URL params on mount
   $effect(() => {
-    const params = $page.url.searchParams;
-    const q = params.get('q');
-    if (q && q !== query) {
-      query = q;
-      searchType = (params.get('type') as any) || 'threads';
+    const signature = $page.url.searchParams.toString();
+    untrack(() => {
+      const params = new URLSearchParams(signature);
+      query = params.get('q') || '';
+      searchType = params.get('type') === 'posts' ? 'posts' : 'threads';
       authorFilter = params.get('author') || '';
-      doSearch();
-    }
+      currentPage = Math.max(1, Number(params.get('page')) || 1);
+      void doSearch(params);
+    });
   });
 
-  async function doSearch() {
-    if (query.length < 2) return;
-    loading = true;
-    searched = true;
+  async function doSearch(params: URLSearchParams) {
+    const id = ++requestId;
+    const q = (params.get('q') || '').trim();
+    error = '';
+    fallback = false;
+    results = [];
+    total = 0;
+    totalPages = 1;
+    searched = q.length >= 2;
+    loading = searched;
+    if (!searched) return;
     try {
-      const data = await api.search(query, {
-        type: searchType,
-        page: currentPage,
-        author: authorFilter || undefined
+      const data = await api.search(q, {
+        type: params.get('type') || 'threads',
+        page: Number(params.get('page')) || 1,
+        author: params.get('author') || undefined,
+        forum_id: params.get('forum_id') || undefined
       });
+      if (id !== requestId) return;
       results = data.results || [];
       total = data.total || 0;
-      totalPages = data.total_pages || Math.ceil(total / perPage) || 1;
+      totalPages = data.total_pages || 1;
+      currentPage = data.page || 1;
+      resultType = data.type || 'threads';
+      fallback = data.fallback === true;
     } catch (err: any) {
+      if (id !== requestId) return;
       error = err?.error || 'Search failed. Please try again.';
-      results = [];
+    } finally {
+      if (id === requestId) loading = false;
     }
-    loading = false;
   }
 
   function goToPage(pg: number) {
-    currentPage = pg;
-    doSearch();
+    const params = new URLSearchParams($page.url.searchParams);
+    params.set('page', String(pg));
+    void goto(`/search?${params}`);
   }
 
   function handleSubmit() {
-    currentPage = 1;
-    const params = new URLSearchParams({ q: query, type: searchType });
-    if (authorFilter) params.set('author', authorFilter);
-    goto(`/search?${params.toString()}`, { replaceState: true });
-    doSearch();
+    const params = new URLSearchParams({ q: query.trim(), type: searchType });
+    if (authorFilter.trim()) params.set('author', authorFilter.trim());
+    const forum = $page.url.searchParams.get('forum_id');
+    if (forum) params.set('forum_id', forum);
+    if (params.toString() === $page.url.searchParams.toString()) void doSearch(params);
+    else void goto(`/search?${params}`);
   }
 
   function timeAgo(dateStr: string | null): string {
@@ -81,6 +99,8 @@
         bind:value={query}
         placeholder="Search threads, posts..."
         class="search-input"
+        aria-label="Search query"
+        maxlength="200"
         minlength="2"
       />
       <button type="submit" class="btn btn-primary" disabled={loading || query.length < 2}>
@@ -102,10 +122,14 @@
     </div>
   </form>
 
+  {#if fallback && !loading && !error}
+    <p role="status">Showing basic search results.</p>
+  {/if}
+
   {#if loading}
     <div class="loading">Searching...</div>
   {:else if error}
-    <div class="error-box">{error}</div>
+    <div class="error-box" role="alert">{error}</div>
   {:else if searched && results.length === 0}
     <div class="no-results">No results found for "{query}"</div>
   {:else if results.length > 0}
@@ -116,7 +140,8 @@
     <div class="results-list">
       {#each results as result (result.id)}
         <div class="result-item">
-          <a href="/threads/{result.slug}" class="result-title">{result.title}</a>
+          <a href={result.url || `/threads/${result.slug}`} class="result-title">{result.title}</a>
+          {#if resultType === 'posts'}<p class="result-excerpt">{result.excerpt}</p>{/if}
           <div class="result-meta">
             {#if result.forum}
               in <a href="/forums/{result.forum.slug}" class="result-forum">{result.forum.name}</a>
@@ -124,7 +149,7 @@
             {#if result.user}
               &middot; by <a href="/profile/{result.user.slug}" class="result-author">{result.user.username}</a>
             {/if}
-            &middot; {result.reply_count} replies &middot; {result.view_count} views
+            {#if resultType === 'threads'}&middot; {result.reply_count} replies &middot; {result.view_count} views{/if}
             &middot; {timeAgo(result.inserted_at)}
           </div>
         </div>
@@ -183,6 +208,7 @@
     border: 1px solid var(--border-color); border-radius: var(--radius);
   }
   .result-title { font-size: 14px; font-weight: 700; color: var(--text-link); display: block; }
+  .result-excerpt { white-space: pre-wrap; overflow-wrap: anywhere; margin-top: 6px; }
   .result-meta { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
   .result-forum { color: var(--text-secondary); }
   .result-author { color: var(--text-secondary); }
