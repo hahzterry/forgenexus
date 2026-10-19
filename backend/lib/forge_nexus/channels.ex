@@ -73,7 +73,9 @@ defmodule ForgeNexus.Channels do
 
           group_ids ->
             from c in Channel,
-              where: c.is_private == false or fragment("? && ?", c.allowed_group_ids, ^group_ids)
+              where:
+                c.is_private == false or
+                  fragment("? && ?", c.allowed_group_ids, type(^group_ids, {:array, :binary_id}))
         end
 
       query |> order_by(asc: :position) |> preload(:category) |> Repo.all()

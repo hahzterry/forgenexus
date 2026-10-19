@@ -1,9 +1,8 @@
 <script lang="ts">
-  import { voiceStore, type VoiceParticipant } from '$lib/stores/voice.svelte';
+  import { voiceStore, type RemoteVideo, type VoiceParticipant } from '$lib/stores/voice.svelte';
   import { auth } from '$lib/stores/auth.svelte';
   import WatchPartyPlayer from '$lib/components/channels/WatchPartyPlayer.svelte';
 
-  let videoContainer = $state<HTMLDivElement>();
   let selfHandRaised = $state(false);
 
   async function toggleHand() {
@@ -33,38 +32,45 @@
     return p.user_id === voiceStore.hostId;
   }
 
+  function attachVideo(node: HTMLVideoElement, video: RemoteVideo) {
+    const attach = () => {
+      if (video.track) video.track.attach(node);
+      else node.srcObject = video.stream;
+      node.muted = true;
+      void node.play().catch(() => {});
+    };
+    const detach = () => { video.track?.detach(node); node.pause(); node.srcObject = null; };
+    attach();
+    return { update(next: RemoteVideo) { if (video !== next) { detach(); video = next; attach(); } }, destroy: detach };
+  }
+
   const canModerate = $derived(voiceStore.isHost || voiceStore.yourRole === 'speaker');
 </script>
 
 {#if voiceStore.isInRoom}
   <WatchPartyPlayer />
 
-  <!-- Video grid (only when someone has video on) -->
-  {#if voiceStore.isVideoOn || voiceStore.participants.some(p => p.video || p.screen_share)}
-    <div class="video-grid" bind:this={videoContainer}>
+  <!-- Attach SDK video tracks directly so adaptive subscriptions follow the tiles. -->
+  {#if voiceStore.isVideoOn || voiceStore.isScreenSharing || voiceStore.remoteVideos.size}
+    <div class="video-grid">
       {#if voiceStore.isVideoOn && voiceStore.localStream}
-        <div class="video-tile self">
-          <video
-            autoplay
-            muted
-            playsinline
-            srcObject={voiceStore.localStream}
-          ></video>
-          <span class="video-label">You</span>
+        <div class="video-tile self camera-preview">
+          <video aria-label="Your camera" autoplay muted playsinline srcObject={voiceStore.localStream}></video>
+          <span class="video-label">You · Camera</span>
         </div>
       {/if}
-
-      {#each [...voiceStore.remoteStreams.entries()] as [userId, stream]}
-        {@const participant = voiceStore.participants.find(p => p.user_id === userId)}
-        {#if participant && (participant.video || participant.screen_share)}
-          <div class="video-tile">
-            <video
-              autoplay
-              muted
-              playsinline
-              srcObject={stream}
-            ></video>
-            <span class="video-label">{participant.username}</span>
+      {#if voiceStore.isScreenSharing && voiceStore.screenStream}
+        <div class="video-tile self screen-preview">
+          <video aria-label="Your screen share" autoplay muted playsinline srcObject={voiceStore.screenStream}></video>
+          <span class="video-label">You · Screen share</span>
+        </div>
+      {/if}
+      {#each [...voiceStore.remoteVideos.entries()] as [id, video] (id)}
+        {@const participant = voiceStore.participants.find(p => p.user_id === video.userId)}
+        {#if participant && (video.source === 'camera' ? participant.video : video.source === 'screen_share' ? participant.screen_share : participant.video || participant.screen_share)}
+          <div class="video-tile" data-video-source={video.source}>
+            <video aria-label={`${participant.username} ${video.source === 'screen_share' ? 'screen share' : 'camera'}`} autoplay muted playsinline use:attachVideo={video}></video>
+            <span class="video-label">{participant.username} · {video.source === 'screen_share' ? 'Screen share' : 'Camera'}</span>
           </div>
         {/if}
       {/each}
@@ -215,6 +221,9 @@
       <button
         class="ctrl-btn"
         class:active={voiceStore.isVideoOn}
+        disabled={voiceStore.changingVideo}
+        aria-pressed={voiceStore.isVideoOn}
+        aria-label={voiceStore.isVideoOn ? 'Turn off camera' : 'Turn on camera'}
         onclick={() => voiceStore.toggleVideo()}
         title={voiceStore.isVideoOn ? 'Turn off camera' : 'Turn on camera'}
       >
@@ -224,6 +233,9 @@
       <button
         class="ctrl-btn"
         class:active={voiceStore.isScreenSharing}
+        disabled={voiceStore.changingScreen}
+        aria-pressed={voiceStore.isScreenSharing}
+        aria-label={voiceStore.isScreenSharing ? 'Stop sharing' : 'Share screen'}
         onclick={() => voiceStore.toggleScreenShare()}
         title={voiceStore.isScreenSharing ? 'Stop sharing' : 'Share screen'}
       >
@@ -288,7 +300,8 @@
     height: 100%;
     object-fit: cover;
   }
-  .video-tile.self video { transform: scaleX(-1); }
+  .video-tile.self.camera-preview video { transform: scaleX(-1); }
+  .video-tile.screen-preview video, .video-tile[data-video-source='screen_share'] video { object-fit: contain; }
   .video-label {
     position: absolute;
     bottom: 4px;

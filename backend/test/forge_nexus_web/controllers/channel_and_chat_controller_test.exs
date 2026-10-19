@@ -64,6 +64,41 @@ defmodule ForgeNexusWeb.ChannelAndChatControllerTest do
   # ChannelController Tests
   # =========================================================================
   describe "ChannelController" do
+    test "authenticated channel listing respects UUID group membership", %{conn: conn} do
+      user = create_user()
+
+      group =
+        Repo.insert!(%Accounts.UserGroup{name: "Video test group", slug: "video-test-group"})
+
+      Repo.insert!(%Accounts.UserGroupMembership{user_id: user.id, group_id: group.id})
+      {_cat, public} = create_category_and_channel()
+
+      {:ok, allowed} =
+        Channels.create_channel(%{
+          name: "Allowed",
+          slug: "allowed-video-test",
+          is_private: true,
+          allowed_group_ids: [group.id]
+        })
+
+      {:ok, hidden} =
+        Channels.create_channel(%{
+          name: "Hidden",
+          slug: "hidden-video-test",
+          is_private: true,
+          allowed_group_ids: [Ecto.UUID.generate()]
+        })
+
+      response = conn |> auth_conn(user) |> get(~p"/api/channels") |> json_response(200)
+
+      ids =
+        for category <- response["categories"], channel <- category["channels"], do: channel["id"]
+
+      assert public.id in ids
+      assert allowed.id in ids
+      refute hidden.id in ids
+    end
+
     test "browse channels, view channel, and post message", %{conn: conn} do
       user = create_user()
       {_cat, ch} = create_category_and_channel()

@@ -40,6 +40,13 @@ export interface VoiceParticipant {
   hand_raised?: boolean;
 }
 
+export interface RemoteVideo {
+  userId: string;
+  source: 'camera' | 'screen_share' | 'video';
+  stream: MediaStream;
+  track?: RemoteTrack;
+}
+
 // --- ICE config: STUN baseline + time-limited TURN credentials fetched from
 //     the backend. TURN is required for users behind symmetric NAT — without
 //     it, mesh WebRTC silently fails between any two non-cone-NAT peers and
@@ -82,6 +89,9 @@ let remoteStreams = $state<Map<string, MediaStream>>(new Map());
 let isMuted = $state(false);
 let isDeafened = $state(false);
 let isVideoOn = $state(false);
+let changingVideo = $state(false);
+let changingScreen = $state(false);
+let remoteVideos = $state<Map<string, RemoteVideo>>(new Map());
 let isScreenSharing = $state(false);
 let isConnecting = $state(false);
 let isReconnecting = $state(false);
@@ -145,6 +155,9 @@ export const voiceStore = {
   get isMuted() { return isMuted; },
   get isDeafened() { return isDeafened; },
   get isVideoOn() { return isVideoOn; },
+  get changingVideo() { return changingVideo; },
+  get changingScreen() { return changingScreen; },
+  get remoteVideos() { return remoteVideos; },
   get isScreenSharing() { return isScreenSharing; },
   get isConnecting() { return isConnecting; },
   get isReconnecting() { return isReconnecting; },
@@ -462,80 +475,99 @@ export const voiceStore = {
   },
 
   async toggleVideo() {
-    if (isVideoOn) {
-      if (lkActive && lkRoom) {
-        await lkRoom.localParticipant.setCameraEnabled(false);
-      }
-      if (localStream) {
-        localStream.getVideoTracks().forEach(t => {
-          t.stop();
-          localStream!.removeTrack(t);
-        });
-      }
-      isVideoOn = false;
-    } else {
-      try {
-        if (lkActive && lkRoom) {
-          await lkRoom.localParticipant.setCameraEnabled(true);
-          isVideoOn = true;
-        } else {
-          const videoStream = await navigator.mediaDevices.getUserMedia({ video: true });
-          const videoTrack = videoStream.getVideoTracks()[0];
-          if (localStream) {
-            localStream.addTrack(videoTrack);
-          }
-          peerConnections.forEach((pc) => {
-            pc.addTrack(videoTrack, localStream!);
-          });
-          isVideoOn = true;
+    if (!activeRoom || changingVideo) return;
+    changingVideo = true;
+    const sessionId = activeRoom.id;
+    const room = lkActive ? lkRoom : null;
+    try {
+      if (isVideoOn) {
+        if (room) {
+          const publication = room.localParticipant.getTrackPublication(Track.Source.Camera);
+          if (publication?.track) await room.localParticipant.unpublishTrack(publication.track);
         }
-      } catch (e) {
-        console.error('Failed to start video:', e);
+        clearCamera();
+      } else {
+        let stream: MediaStream;
+        if (room) {
+          const publication = await room.localParticipant.setCameraEnabled(true);
+          if (!publication?.track) throw new Error('Camera did not start');
+          stream = new MediaStream([publication.track.mediaStreamTrack]);
+        } else {
+          stream = await navigator.mediaDevices.getUserMedia({ video: true });
+        }
+        if (activeRoom?.id !== sessionId || (room && lkRoom !== room)) {
+          stream.getTracks().forEach(track => track.stop());
+          return;
+        }
+        const videoTrack = stream.getVideoTracks()[0];
+        localStream?.addTrack(videoTrack);
+        if (localStream) localStream = new MediaStream(localStream.getTracks());
+        if (!room) peerConnections.forEach(pc => pc.addTrack(videoTrack, localStream!));
+        isVideoOn = true;
       }
+    } catch (error: any) {
+      toast.error(error?.message || 'Unable to start camera');
+    } finally {
+      changingVideo = false;
+      sendMediaUpdate();
     }
-    sendMediaUpdate();
   },
 
   async toggleScreenShare() {
-    if (isScreenSharing) {
-      if (lkActive && lkRoom) {
-        await lkRoom.localParticipant.setScreenShareEnabled(false);
-      }
-      if (screenStream) {
-        screenStream.getTracks().forEach(t => t.stop());
-        screenStream = null;
-      }
-      isScreenSharing = false;
-    } else {
-      try {
-        if (lkActive && lkRoom) {
-          await lkRoom.localParticipant.setScreenShareEnabled(true);
-          isScreenSharing = true;
+    if (!activeRoom || changingScreen) return;
+    changingScreen = true;
+    const sessionId = activeRoom.id;
+    const room = lkActive ? lkRoom : null;
+    try {
+      if (isScreenSharing) {
+        if (room) await room.localParticipant.setScreenShareEnabled(false);
+        clearScreen();
+      } else {
+        let stream: MediaStream;
+        if (room) {
+          const publication = await room.localParticipant.setScreenShareEnabled(true, { audio: false });
+          if (!publication?.track) throw new Error('Screen share did not start');
+          stream = new MediaStream([publication.track.mediaStreamTrack]);
         } else {
-          screenStream = await navigator.mediaDevices.getDisplayMedia({
-            video: true,
-            audio: false
-          });
-          const screenTrack = screenStream.getVideoTracks()[0];
-          peerConnections.forEach((pc) => {
-            pc.addTrack(screenTrack, screenStream!);
-          });
-          screenTrack.onended = () => {
-            isScreenSharing = false;
-            screenStream = null;
-            sendMediaUpdate();
-          };
-          isScreenSharing = true;
+          stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
         }
-      } catch (e) {
-        console.error('Failed to start screen share:', e);
+        if (activeRoom?.id !== sessionId || (room && lkRoom !== room)) {
+          stream.getTracks().forEach(track => track.stop());
+          return;
+        }
+        screenStream = stream;
+        const screenTrack = stream.getVideoTracks()[0];
+        if (!room) peerConnections.forEach(pc => pc.addTrack(screenTrack, stream));
+        screenTrack.addEventListener('ended', () => {
+          if (screenStream === stream) { clearScreen(); sendMediaUpdate(); }
+        }, { once: true });
+        isScreenSharing = true;
       }
+    } catch (error: any) {
+      toast.error(error?.message || 'Unable to share screen');
+    } finally {
+      changingScreen = false;
+      sendMediaUpdate();
     }
-    sendMediaUpdate();
   }
 };
 
 // --- Internal functions ---
+
+function clearCamera() {
+  localStream?.getVideoTracks().forEach(track => { track.stop(); localStream?.removeTrack(track); });
+  isVideoOn = false;
+}
+
+function clearScreen() {
+  screenStream?.getTracks().forEach(track => track.stop());
+  screenStream = null;
+  isScreenSharing = false;
+}
+
+function removeRemoteVideos(userId: string) {
+  remoteVideos = new Map([...remoteVideos].filter(([, video]) => video.userId !== userId));
+}
 
 function setupSignalingHandlers() {
   if (!voiceChannel) return;
@@ -632,6 +664,7 @@ function setupSignalingHandlers() {
       pc.close();
       peerConnections.delete(msg.user_id);
     }
+    removeRemoteVideos(msg.user_id);
     remoteStreams.delete(msg.user_id);
     remoteStreams = new Map(remoteStreams);
     speakingUsers.delete(msg.user_id);
@@ -705,8 +738,19 @@ async function connectLiveKit(roomId: string, wsUrl: string): Promise<void> {
     }
   });
 
-  lkRoom.on(RoomEvent.TrackSubscribed, (track: RemoteTrack, _pub: RemoteTrackPublication, participant: RemoteParticipant) => {
+  currentRoom.on(RoomEvent.LocalTrackUnpublished, publication => {
+    if (lkRoom !== currentRoom) return;
+    if (publication.source === Track.Source.Camera) clearCamera();
+    if (publication.source === Track.Source.ScreenShare) clearScreen();
+    sendMediaUpdate();
+  });
+
+  lkRoom.on(RoomEvent.TrackSubscribed, (track: RemoteTrack, pub: RemoteTrackPublication, participant: RemoteParticipant) => {
     const id = participant.identity;
+    if (track.kind === Track.Kind.Video) {
+      remoteVideos.set(pub.trackSid, { userId: id, source: pub.source === Track.Source.ScreenShare ? 'screen_share' : 'camera', stream: new MediaStream([track.mediaStreamTrack]), track });
+      remoteVideos = new Map(remoteVideos);
+    }
     const existing = remoteStreams.get(id);
     const stream = existing ?? new MediaStream();
     stream.addTrack(track.mediaStreamTrack);
@@ -723,6 +767,8 @@ async function connectLiveKit(roomId: string, wsUrl: string): Promise<void> {
 
   lkRoom.on(RoomEvent.TrackUnsubscribed, (track: RemoteTrack, _pub: RemoteTrackPublication, participant: RemoteParticipant) => {
     const id = participant.identity;
+    remoteVideos.delete(_pub.trackSid);
+    remoteVideos = new Map(remoteVideos);
     const stream = remoteStreams.get(id);
     if (stream) {
       stream.removeTrack(track.mediaStreamTrack);
@@ -734,6 +780,7 @@ async function connectLiveKit(roomId: string, wsUrl: string): Promise<void> {
   });
 
   lkRoom.on(RoomEvent.ParticipantDisconnected, (participant: RemoteParticipant) => {
+    removeRemoteVideos(participant.identity);
     remoteStreams.delete(participant.identity);
     remoteStreams = new Map(remoteStreams);
   });
@@ -791,6 +838,11 @@ async function createPeerConnection(remoteUserId: string, isInitiator: boolean):
 
   // Handle remote tracks
   pc.ontrack = (event) => {
+    if (event.track.kind === 'video') {
+      remoteVideos.set(event.track.id, { userId: remoteUserId, source: 'video', stream: new MediaStream([event.track]) });
+      remoteVideos = new Map(remoteVideos);
+      event.track.addEventListener('ended', () => { remoteVideos.delete(event.track.id); remoteVideos = new Map(remoteVideos); }, { once: true });
+    }
     const stream = event.streams[0] || new MediaStream([event.track]);
     remoteStreams.set(remoteUserId, stream);
     remoteStreams = new Map(remoteStreams);
@@ -930,6 +982,7 @@ function cleanup() {
   peerConnections.forEach(pc => pc.close());
   peerConnections.clear();
   remoteStreams = new Map();
+  remoteVideos = new Map();
   speakingUsers = new Set();
 
   // Stop VAD
