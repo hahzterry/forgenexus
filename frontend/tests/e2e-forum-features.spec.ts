@@ -15,6 +15,8 @@ const pages = [
 
 test.beforeEach(async ({ context, page }) => {
   await context.addInitScript(() => localStorage.setItem('fn_cookie_consent', 'accepted'));
+  // Forum behavior must not wait for third-party font servers.
+  await context.route(/^https:\/\/(fonts\.cdnfonts\.com|fonts\.googleapis\.com|fonts\.gstatic\.com)\//, route => route.abort());
   await context.route('**/api/**', async route => {
     const url = new URL(route.request().url());
     if (!url.pathname.startsWith('/api/')) return route.continue();
@@ -30,6 +32,7 @@ test.beforeEach(async ({ context, page }) => {
     else if (path === '/threads/second/rating') data = { rating: { average: 0, count: 0 }, user_rating: null };
     else if (path === '/voice/rooms') data = { rooms: [{ id: 'room-id', name: 'Named lounge', participant_count: 3, participants: [] }] };
     else if (path === '/themes') data = { themes: [] };
+    else if (path === '/onboarding') data = { onboarding: { status: 'not_started', reviewed_steps: [], navigation_mode: 'full' } };
     else if (path === '/preferences') data = { preferences: {} };
     else if (path === '/users/online') data = { users: [], stats: { total: 0, members: 0, guests: 0 }, groups: [] };
     else if (path === '/notifications') data = { notifications: [], unread_count: 0 };

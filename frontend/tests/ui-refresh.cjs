@@ -27,6 +27,7 @@ async function setup(browser,{width=1440,light=false,role='guest',presence=12,ho
   else if(path==='/forums')data={categories:[{id:'c1',name:'Community',description:'A place to create',color:'#239675',forums:[forum]}],unread_counts:role==='guest'?{}:{f1:2}};
   else if(path==='/settings/public')data={settings:{welcome_center_enabled:true,chat_bar_enabled:false,shoutbox_enabled:false}};
   else if(path==='/themes')data={themes:[]};
+  else if(path==='/onboarding')data={onboarding:{status:'not_started',reviewed_steps:[],navigation_mode:'full'}};
   else if(path==='/preferences')data={preferences:{}};
   else if(path==='/users/online')data={users:[],stats:{members:0,guests:0,total:0,record_count:0},groups:[]};
   else if(path==='/notifications')data={notifications:[],unread_count:0};
@@ -52,11 +53,14 @@ async function setup(browser,{width=1440,light=false,role='guest',presence=12,ho
   await expect(page.locator('.hero-primary')).toHaveAttribute('href',role==='guest'?'/auth/register':'/forums');
   await expect(page.locator('.welcome-center')).toContainText(role==='guest'?'Community snapshot':'Welcome back,');
   if(role==='guest'){await expect(page.locator('.welcome-center .cta-content')).toHaveCount(0);await expect(page.locator('.mini-stat').first()).toContainText('42');await expect(page.locator('.recent-threads')).toContainText('Builder');}
-  if(role!=='guest')await expect(page.locator('.welcome-center')).toContainText('Set your avatar');
+  if(role!=='guest')await expect(page.locator('.welcome-center')).toContainText('Find a discussion');
   const nav=page.locator(width<=1280?'.mobile-menu':'.main-nav');
   if(width<=1280)await page.getByRole('button',{name:'Toggle menu',exact:true}).click();
-  for(const href of ['/', '/chat','/messages','/live','/discover','/marketplace','/trending','/members','/search',...(role==='guest'?[]:['/creator','/following']),...(role==='staff'?['/mod','/admin']:[])])await expect(nav.locator(`a[href="${href}"]`)).toBeVisible();
+  if(width<=1280)await nav.locator('summary').click();
+  else if(role==='guest')await nav.locator('summary').click();
+  for(const href of [role==='guest'?'/':'/home', '/forums','/chat','/live','/discover','/marketplace','/trending','/members','/search',...(role==='guest'?[]:['/messages','/creator','/following','/get-started']),...(role==='staff'?['/mod','/admin']:[])])await expect(nav.locator(`a[href="${href}"]`)).toBeVisible();
   if(width<=1280){await page.keyboard.press('Escape');await expect(page.getByRole('button',{name:'Toggle menu',exact:true})).toHaveAttribute('aria-expanded','false');}
+  await page.keyboard.press('Escape');
   await expect(page.locator('.hero-primary')).toHaveCSS('background-color',light?'rgb(0, 122, 100)':'rgb(98, 226, 191)');
   const contrast=await page.locator('.hero-primary').evaluate(el=>{const c=getComputedStyle(el);const lum=s=>{const x=s.match(/[0-9.]+/g).slice(0,3).map(Number).map(v=>{v/=255;return v<=.04045?v/12.92:((v+.055)/1.055)**2.4});return x[0]*.2126+x[1]*.7152+x[2]*.0722};const a=lum(c.color),b=lum(c.backgroundColor);return(Math.max(a,b)+.05)/(Math.min(a,b)+.05)});expect(contrast).toBeGreaterThanOrEqual(4.5);
   const overflow=await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth);expect(overflow).toBe(false);

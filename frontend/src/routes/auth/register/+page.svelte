@@ -17,7 +17,7 @@
     submitting = true;
     try {
       await auth.register(username, email, password);
-      goto('/');
+      goto('/get-started');
     } catch (err: any) {
       if (err.errors) {
         errors = err.errors;

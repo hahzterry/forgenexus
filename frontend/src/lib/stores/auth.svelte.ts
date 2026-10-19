@@ -59,6 +59,7 @@ interface BanInfo {
   banned_by: string;
 }
 
+let sessionVersion = 0;
 let user = $state<User | null>(null);
 let loading = $state(true);
 let banInfo = $state<BanInfo | null>(null);
@@ -72,49 +73,57 @@ export const auth = {
   get isBanned() { return !!banInfo; },
 
   async init() {
+    const version = sessionVersion;
     api.loadToken();
     try {
       const data = await api.me();
+      if (version !== sessionVersion) return;
       user = data.user;
       banInfo = null;
-      if (user) {
+      if (user && !api.getWsToken()) {
         try {
-          const refreshData = await api.refreshToken();
-          if (refreshData?.token) api.setToken(refreshData.token);
+          const refreshData = await api.request('/auth/refresh', {method: 'POST'});
+          if (version === sessionVersion && refreshData?.token) api.setToken(refreshData.token);
         } catch { /* best effort */ }
       }
     } catch (err: any) {
+      if (version !== sessionVersion) return;
       user = null;
-      if (err?.status === 403 && err?.ban) {
-        banInfo = err.ban;
-      }
+      if (err?.status === 403 && err?.ban) banInfo = err.ban;
     }
-    loading = false;
+    if (version === sessionVersion) loading = false;
   },
 
   async login(email: string, password: string) {
-    const data = await api.login(email, password);
-    if (data.requires_2fa) {
-      // Don't set token/user yet — 2FA still needed
+    ++sessionVersion;
+    try {
+      const data = await api.login(email, password);
+      ++sessionVersion;
+      if (!data.requires_2fa) { api.setToken(data.token); user = data.user; }
+      loading = false;
       return data;
-    }
-    api.setToken(data.token);
-    user = data.user;
-    return data;
+    } catch (error) { loading = false; throw error; }
   },
 
   async register(username: string, email: string, password: string) {
-    const data = await api.register({ username, email, password });
-    api.setToken(data.token);
-    user = data.user;
-    return data;
+    ++sessionVersion;
+    try {
+      const data = await api.register({ username, email, password });
+      ++sessionVersion;
+      api.setToken(data.token);
+      user = data.user;
+      loading = false;
+      return data;
+    } catch (error) { loading = false; throw error; }
   },
 
   setUser(u: User) {
+    ++sessionVersion; loading = false;
     user = u;
   },
 
   async logout() {
+    ++sessionVersion; loading = false;
     notificationStore.stopPolling();
     try { await api.logout(); } catch { /* best effort */ }
     api.setToken(null);

@@ -307,6 +307,12 @@ defmodule ForgeNexusWeb.Router do
 
   # Content creation routes (require verified email)
   scope "/api", ForgeNexusWeb do
+    pipe_through [:api, :authenticated]
+    get "/onboarding", OnboardingController, :show
+    put "/onboarding", OnboardingController, :update
+  end
+
+  scope "/api", ForgeNexusWeb do
     pipe_through [:api, :authenticated, :verified_email]
 
     post "/threads", ThreadController, :create

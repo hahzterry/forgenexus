@@ -52,8 +52,25 @@ defmodule ForgeNexus.Accounts do
 
   def register_user(attrs) do
     case %User{} |> User.registration_changeset(attrs) |> apply_password_security_check() do
-      %Ecto.Changeset{valid?: true} = cs -> Repo.insert(cs)
-      %Ecto.Changeset{} = cs -> {:error, %{cs | action: :insert}}
+      %Ecto.Changeset{valid?: true} = cs ->
+        Repo.transaction(fn ->
+          user =
+            case Repo.insert(cs) do
+              {:ok, user} -> user
+              {:error, invalid} -> Repo.rollback(invalid)
+            end
+
+          Repo.insert!(%UserPreference{
+            user_id: user.id,
+            onboarding_status: "active",
+            navigation_mode: "simple"
+          })
+
+          user
+        end)
+
+      %Ecto.Changeset{} = cs ->
+        {:error, %{cs | action: :insert}}
     end
   end
 
@@ -814,12 +831,11 @@ defmodule ForgeNexus.Accounts do
   def get_preferences(user_id) do
     case Repo.get_by(UserPreference, user_id: user_id) do
       nil ->
-        {:ok, pref} =
-          %UserPreference{}
-          |> UserPreference.create_changeset(%{user_id: user_id})
-          |> Repo.insert()
+        %UserPreference{}
+        |> UserPreference.create_changeset(%{user_id: user_id})
+        |> Repo.insert!(on_conflict: :nothing, conflict_target: :user_id)
 
-        pref
+        Repo.get_by!(UserPreference, user_id: user_id)
 
       pref ->
         pref

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onboarding } from '$lib/stores/onboarding.svelte';
   import { auth } from '$lib/stores/auth.svelte';
   import { api } from '$lib/api/client';
   import UsernameDisplay from '$lib/components/common/UsernameDisplay.svelte';
@@ -47,21 +48,14 @@
   let loading = $state(true);
   let loadError = $state(false);
 
-  // Checklist for new members
-  let checklist = $derived.by(() => {
-    if (!auth.user) return [];
-    const u = auth.user;
-    return [
-      { label: 'Set your avatar', done: !!u.avatar_url, link: '/settings' },
-      { label: 'Write an introduction', done: (u.post_count ?? 0) > 0, link: '/forums' },
-      { label: 'Customize your profile', done: !!(u.nameplate_color || u.avatar_frame), link: '/settings' },
-      { label: 'Pick a theme', done: !!u.theme_id, link: '/settings' },
-    ];
-  });
-
-  let checklistProgress = $derived(
-    checklist.length > 0 ? Math.round((checklist.filter(c => c.done).length / checklist.length) * 100) : 0
-  );
+  let reviewedSteps = $derived(onboarding.owner === auth.user?.id ? onboarding.state?.reviewed_steps || [] : []);
+  let checklist = $derived([
+    {label:'Find a discussion',done:reviewedSteps.includes('explore'),link:'/get-started'},
+    {label:'Follow a discussion',done:reviewedSteps.includes('follow'),link:'/get-started'},
+    {label:'Introduce yourself',done:reviewedSteps.includes('introduce'),link:'/get-started'},
+    {label:'Explore live rooms',done:reviewedSteps.includes('live'),link:'/get-started'}
+  ]);
+  let checklistProgress = $derived(checklist.filter(c => c.done).length * 25);
 
   let isNewMember = $derived.by(() => {
     if (!auth.user) return false;
@@ -265,6 +259,7 @@
         <div class="welcome-sections">
           <div class="welcome-section getting-started">
             <h4>Getting Started</h4>
+            <p><a href="/get-started">Open your optional guide</a> · Progress records steps you reviewed.</p>
             <div class="progress-bar-container">
               <div class="progress-bar" style="width: {checklistProgress}%"></div>
               <span class="progress-text">{checklistProgress}% complete</span>

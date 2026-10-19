@@ -15,6 +15,10 @@ defmodule ForgeNexus.Accounts.UserPreference do
   @valid_posts_per_page [10, 15, 20, 25, 50]
 
   schema "user_preferences" do
+    field :onboarding_status, :string, default: "not_started"
+    field :onboarding_steps, {:array, :string}, default: []
+    field :navigation_mode, :string, default: "full"
+
     # Display
     field :pagination_mode, :string, default: "paginated"
     field :thread_display_mode, :string, default: "linear"

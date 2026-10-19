@@ -1,10 +1,33 @@
 <script lang="ts">
+  import { untrack } from 'svelte';
+  import { page } from '$app/stores';
+  import { afterNavigate } from '$app/navigation';
+  import { onboarding } from '$lib/stores/onboarding.svelte';
   import { auth } from '$lib/stores/auth.svelte';
   import NotificationBell from '$lib/components/layout/NotificationBell.svelte';
   import StatusSelector from '$lib/components/layout/StatusSelector.svelte';
   import { notificationStore } from '$lib/stores/notifications.svelte';
   import { api } from '$lib/api/client';
 
+  let moreOpen = $state(false);
+  let mobileMoreOpen = $state(false);
+  let simpleNav = $derived(!auth.isLoggedIn || onboarding.owner !== auth.user?.id || onboarding.state?.navigation_mode !== 'full');
+  let primary = $derived([{href:auth.isLoggedIn ? '/home' : '/',label:'Home'},{href:'/forums',label:'Forums'},{href:'/chat',label:'Chat'},{href:'/live',label:'Live'},{href:'/search',label:'Search'}]);
+  let extra = $derived([
+    {href:'/discover',label:'Discover'},{href:'/trending',label:'Trending'},
+    {href:'/new-posts',label:'New posts'},{href:'/members',label:'Members'},
+    {href:'/marketplace',label:'Market'},{href:'/stats',label:'Stats'},
+    ...(auth.isLoggedIn ? [{href:'/messages',label:'Messages'},{href:'/following',label:'Following'},{href:'/creator',label:'Creator'},{href:'/settings',label:'Settings'},{href:'/get-started',label:'Get started'}] : []),
+    ...(auth.isStaff ? [{href:'/mod',label:'Mod'},{href:'/admin',label:'Admin'},{href:'/admin/plugins',label:'Plugins'}] : [])
+  ]);
+  function current(href: string) { return $page.url.pathname === href || (href !== '/' && $page.url.pathname.startsWith(href + '/')); }
+  $effect(() => { const id = auth.user?.id; if (id) untrack(() => { void onboarding.load(id); }); else if (!auth.loading) onboarding.reset(); });
+  afterNavigate(() => closeMobileMenu());
+  async function toggleNavigation() {
+    if (!auth.user) return;
+    try { await onboarding.change(auth.user.id, {action:'navigation',mode:simpleNav?'full':'simple'}); }
+    catch { /* guide store displays save errors */ }
+  }
   let mobileMenuOpen = $state(false);
   let liveCount = $state(0);
   let liveUserCount = $state(0);
@@ -50,15 +73,16 @@
   });
 
   function closeMobileMenu() {
-    mobileMenuOpen = false;
+    mobileMenuOpen = false; moreOpen = false; mobileMoreOpen = false;
   }
 </script>
 
 <svelte:window onkeydown={(event) => { if (event.key === 'Escape') closeMobileMenu(); }} />
 
 <header class="site-header">
+  {#if onboarding.error && auth.isLoggedIn && $page.url.pathname !== '/get-started'}<p class="navigation-error" role="alert">{onboarding.error} <a href="/get-started">Open guide to retry</a></p>{/if}
   <div class="header-inner">
-    <a href="/" class="logo">
+    <a href={auth.isLoggedIn ? "/home" : "/"} class="logo">
       <span class="logo-icon" aria-hidden="true">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
           <path d="m12 2.8 8 4.6v9.2l-8 4.6-8-4.6V7.4l8-4.6Z" />
@@ -68,30 +92,22 @@
       <span class="logo-text">Forge<span class="accent">Nexus</span></span>
     </a>
 
-    <nav class="main-nav" aria-label="Main navigation">
-      <a href="/">Home</a>
-      <a href="/chat" class="chat-link">Chat</a>
-      <a href="/messages" class="messages-link">Messages</a>
-      <a href="/live" class="live-link" class:active={liveCount > 0}>
-        {#if liveCount > 0}
-          <span class="live-dot"></span>
-          <span>Live <strong>{liveUserCount}</strong></span>
-        {:else}
-          Live
-        {/if}
-      </a>
-      <a href="/discover">Discover</a>
-      <a href="/marketplace">Market</a>
-      <a href="/trending">Trending</a>
-      <a href="/members">Members</a>
-      <a href="/search">Search</a>
-      {#if auth.isLoggedIn}
-        <a href="/creator">Creator</a>
-        <a href="/following">Following</a>
-      {/if}
-      {#if auth.isStaff}
-        <a href="/mod" class="mod-link">Mod</a>
-        <a href="/admin" class="mod-link">Admin</a>
+    <nav class="main-nav" class:compact={simpleNav} aria-label="Main navigation">
+      {#each primary as item}
+        <a href={item.href} aria-current={current(item.href) ? 'page' : undefined} class:live-link={item.href === '/live'} class:active={item.href === '/live' && liveCount > 0}>
+          {item.label}{#if item.href === '/live' && liveCount > 0}<span class="live-dot"></span><strong>{liveUserCount}</strong>{/if}
+        </a>
+      {/each}
+      {#if !simpleNav}
+        {#each extra as item}<a href={item.href} aria-current={current(item.href) ? 'page' : undefined}>{item.label}</a>{/each}
+        <button class="navigation-switch" disabled={onboarding.saving} onclick={toggleNavigation}>Use simpler navigation</button>
+      {:else}
+        <details class="nav-more" bind:open={moreOpen}>
+          <summary>More</summary><div class="more-links">
+            {#each extra as item}<a href={item.href} aria-current={current(item.href) ? 'page' : undefined}>{item.label}</a>{/each}
+            {#if auth.isLoggedIn}<button disabled={onboarding.loading || onboarding.saving || !onboarding.state} onclick={toggleNavigation}>Show full navigation</button>{/if}
+          </div>
+        </details>
       {/if}
     </nav>
 
@@ -137,33 +153,12 @@
     class:open={mobileMenuOpen}
     aria-label="Mobile navigation"
   >
-    <a href="/" onclick={closeMobileMenu}>Home</a>
-    <a href="/forums" onclick={closeMobileMenu}>Forums</a>
-    <a href="/discover" onclick={closeMobileMenu}>Discover</a>
-    <a href="/marketplace" onclick={closeMobileMenu}>Market</a>
-    <a href="/chat" onclick={closeMobileMenu}>Chat</a>
-    <a href="/messages" onclick={closeMobileMenu}>Messages</a>
-    <a href="/live" onclick={closeMobileMenu}>
-      {#if liveCount > 0}
-        <span class="live-dot"></span> Live ({liveUserCount})
-      {:else}
-        Live
-      {/if}
-    </a>
-    <a href="/new-posts" onclick={closeMobileMenu}>New Posts</a>
-    <a href="/trending" onclick={closeMobileMenu}>Trending</a>
-    <a href="/members" onclick={closeMobileMenu}>Members</a>
-    <a href="/stats" onclick={closeMobileMenu}>Stats</a>
-    <a href="/search" onclick={closeMobileMenu}>Search</a>
-    {#if auth.isLoggedIn}
-      <a href="/creator" onclick={closeMobileMenu}>Creator</a>
-      <a href="/following" onclick={closeMobileMenu}>Following</a>
-    {/if}
-    {#if auth.isStaff}
-      <a href="/mod" class="mod-link" onclick={closeMobileMenu}>Mod</a>
-      <a href="/admin" class="mod-link" onclick={closeMobileMenu}>Admin</a>
-      <a href="/admin/plugins" class="mod-link" onclick={closeMobileMenu}>Plugins</a>
-    {/if}
+    {#each primary as item}<a href={item.href} onclick={closeMobileMenu} aria-current={current(item.href) ? 'page' : undefined}>{item.label}</a>{/each}
+    <details class="mobile-more" bind:open={mobileMoreOpen}>
+      <summary>More destinations</summary>
+      {#each extra as item}<a href={item.href} onclick={closeMobileMenu} aria-current={current(item.href) ? 'page' : undefined}>{item.label}</a>{/each}
+      {#if auth.isLoggedIn}<button class="mobile-menu-btn" disabled={onboarding.loading || onboarding.saving || !onboarding.state} onclick={toggleNavigation}>{simpleNav ? 'Show full navigation' : 'Use simpler navigation'}</button>{/if}
+    </details>
 
     <div class="mobile-menu-divider"></div>
 
@@ -186,6 +181,15 @@
 </header>
 
 <style>
+  .navigation-error { padding: 8px 16px; font-size: 12px; }
+  .main-nav.compact { overflow: visible; }
+  .nav-more { position: relative; align-self: center; }
+  .nav-more summary, .navigation-switch { padding: 8px 11px; color: var(--text-secondary); font-size: 12px; cursor: pointer; border: none; background: transparent; white-space: nowrap; }
+  .more-links { position: absolute; top: 100%; right: 0; width: 220px; max-height: 70vh; overflow-y: auto; display: grid; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius); padding: 8px; box-shadow: 0 8px 24px #0004; }
+  .more-links button { padding: 8px; cursor: pointer; }
+  .mobile-more { width: 100%; } .mobile-more summary { padding: 14px 20px; cursor: pointer; color: var(--text-secondary); }
+  .main-nav a[aria-current="page"], .mobile-menu a[aria-current="page"] { color: var(--accent); background: var(--bg-hover); }
+
   .site-header {
     background: var(--glass-bg);
     border-bottom: 1px solid var(--border-color);
