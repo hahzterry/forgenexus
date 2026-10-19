@@ -33,11 +33,13 @@
       error = 'Not connected — please log in first.';
       return;
     }
+    error = '';
     joining = room.id;
     try {
       await voiceStore.joinRoom(room.id, socket);
       goto('/chat');
-    } catch {
+    } catch (err: any) {
+      error = err?.message || 'Unable to join voice room';
       joining = null;
     }
   }

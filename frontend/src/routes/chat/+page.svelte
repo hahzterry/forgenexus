@@ -9,6 +9,7 @@
   import VoiceControls from '$lib/components/channels/VoiceControls.svelte';
   import { voiceStore } from '$lib/stores/voice.svelte';
   import { socketStore } from '$lib/stores/socket.svelte';
+  import { toast } from '$lib/stores/toast.svelte';
   import { api } from '$lib/api/client';
 
   let messagesContainer = $state<HTMLDivElement>();
@@ -108,7 +109,8 @@
   async function handleJoinVoiceRoom(roomId: string) {
     const socket = socketStore.getSocket();
     if (socket) {
-      voiceStore.joinRoom(roomId, socket);
+      try { await voiceStore.joinRoom(roomId, socket); }
+      catch (error: any) { toast.error(error?.message || 'Unable to join voice room'); }
     }
   }
 

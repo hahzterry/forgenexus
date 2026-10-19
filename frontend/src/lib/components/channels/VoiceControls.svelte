@@ -60,6 +60,7 @@
           <div class="video-tile">
             <video
               autoplay
+              muted
               playsinline
               srcObject={stream}
             ></video>

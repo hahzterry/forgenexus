@@ -860,7 +860,7 @@
               onclick={toggleVoiceLounge}
               title={isVoiceConnected ? 'Connected to Voice Lounge' : 'Join or open Thread Voice Lounge'}
             >
-              <span class="voice-icon">&#127911;</span> {isVoiceConnected ? 'Voice (Live)' : 'Voice Lounge'}
+              <span class="voice-icon">&#127911;</span> {voiceStore.isReconnecting ? 'Voice (Reconnecting)' : isVoiceConnected ? 'Voice (Live)' : 'Voice Lounge'}
             </button>
             {#if !thread.is_locked}
               <button class="btn-jump-reply" onclick={jumpToReply} title="Jump to reply box">↓ Reply</button>
@@ -914,7 +914,7 @@
             <span class="live-pulse"></span>
             <strong>Thread Voice Lounge</strong>
             {#if isVoiceConnected}
-              <span class="badge-live">LIVE ({voiceStore.participants.length} connected)</span>
+              <span class="badge-live">{voiceStore.isReconnecting ? 'RECONNECTING' : 'LIVE'} ({voiceStore.participants.length} connected)</span>
             {/if}
           </div>
           <button class="stage-close-btn" onclick={() => showVoiceDrawer = false} title="Close drawer">&times;</button>

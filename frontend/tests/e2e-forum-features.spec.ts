@@ -153,7 +153,7 @@ test('voice uses room IDs and participant counts and reports join failure', asyn
   await expect(room).toBeVisible();
   await room.click();
   await expect.poll(() => topics).toContain('voice:room-id');
-  await expect(page.getByRole('alert')).toContainText('Unable to join this voice room');
+  await expect(page.getByRole('alert')).toContainText('Unable to join voice room');
   await expect(page.getByRole('alert')).not.toContainText('Connected to Voice Lounge!');
 });
 

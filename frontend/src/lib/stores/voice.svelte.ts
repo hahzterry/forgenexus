@@ -1,4 +1,5 @@
 import { api } from '$lib/api/client';
+import { toast } from '$lib/stores/toast.svelte';
 import { auth } from '$lib/stores/auth.svelte';
 import {
   Room as LKRoom,
@@ -83,6 +84,8 @@ let isDeafened = $state(false);
 let isVideoOn = $state(false);
 let isScreenSharing = $state(false);
 let isConnecting = $state(false);
+let isReconnecting = $state(false);
+let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 let speakingUsers = $state<Set<string>>(new Set());
 let hostId = $state<string | null>(null);
 let yourRole = $state<'speaker' | 'audience'>('speaker');
@@ -144,6 +147,7 @@ export const voiceStore = {
   get isVideoOn() { return isVideoOn; },
   get isScreenSharing() { return isScreenSharing; },
   get isConnecting() { return isConnecting; },
+  get isReconnecting() { return isReconnecting; },
   get speakingUsers() { return speakingUsers; },
   get isInRoom() { return activeRoom !== null; },
   get hostId() { return hostId; },
@@ -334,6 +338,10 @@ export const voiceStore = {
   },
 
   async joinRoom(roomId: string, socket: any) {
+    if (isConnecting) throw new Error('A voice connection is already in progress');
+    if (!rooms.some(room => room.id === roomId)) await this.loadRooms();
+    const roomData = rooms.find(room => room.id === roomId);
+    if (!roomData) throw new Error('Voice room is unavailable');
     if (activeRoom) {
       await this.leaveRoom();
     }
@@ -357,12 +365,11 @@ export const voiceStore = {
       const resp = await new Promise<any>((resolve, reject) => {
         voiceChannel.join()
           .receive('ok', (resp: any) => resolve(resp))
-          .receive('error', (err: any) => reject(err));
+          .receive('error', (err: any) => reject(new Error(err?.reason || 'Unable to join voice room')))
+          .receive('timeout', () => reject(new Error('Voice room connection timed out')));
       });
 
-      // Set active room
-      const roomData = rooms.find(r => r.id === roomId);
-      activeRoom = roomData || null;
+      // Become active only once both control and media connections are ready.
       participants = resp.participants || [];
       hostId = resp.host_id || null;
       yourRole = (resp.your_role as 'speaker' | 'audience') || 'speaker';
@@ -393,15 +400,21 @@ export const voiceStore = {
         }
       }
 
+      activeRoom = roomData;
       // Start voice activity detection
       startVAD();
 
     } catch (e) {
       console.error('Failed to join voice room:', e);
+      if (voiceChannel) { voiceChannel.leave(); voiceChannel = null; }
+      await disconnectLiveKit();
       cleanup();
+      activeRoom = null;
+      participants = [];
+      throw e;
+    } finally {
+      isConnecting = false;
     }
-
-    isConnecting = false;
   },
 
   async leaveRoom() {
@@ -413,6 +426,7 @@ export const voiceStore = {
       voiceChannel.leave();
       voiceChannel = null;
     }
+    await disconnectLiveKit();
     cleanup();
     activeRoom = null;
     participants = [];
@@ -665,6 +679,32 @@ async function connectLiveKit(roomId: string, wsUrl: string): Promise<void> {
     }
   });
 
+  const currentRoom = lkRoom;
+  const reconnecting = () => {
+    if (lkRoom !== currentRoom || !activeRoom) return;
+    isReconnecting = true;
+    if (!reconnectTimer) reconnectTimer = setTimeout(() => {
+      if (lkRoom === currentRoom) {
+        toast.error('Voice connection lost. Please rejoin the room.');
+        void voiceStore.leaveRoom();
+      }
+    }, 20_000);
+  };
+  currentRoom.on(RoomEvent.SignalReconnecting, reconnecting);
+  currentRoom.on(RoomEvent.Reconnecting, reconnecting);
+  currentRoom.on(RoomEvent.Reconnected, () => {
+    if (lkRoom !== currentRoom) return;
+    if (reconnectTimer) clearTimeout(reconnectTimer);
+    reconnectTimer = null;
+    isReconnecting = false;
+  });
+  currentRoom.on(RoomEvent.Disconnected, () => {
+    if (lkRoom === currentRoom && activeRoom) {
+      toast.error('Voice connection ended. Please rejoin the room.');
+      void voiceStore.leaveRoom();
+    }
+  });
+
   lkRoom.on(RoomEvent.TrackSubscribed, (track: RemoteTrack, _pub: RemoteTrackPublication, participant: RemoteParticipant) => {
     const id = participant.identity;
     const existing = remoteStreams.get(id);
@@ -719,14 +759,18 @@ async function connectLiveKit(roomId: string, wsUrl: string): Promise<void> {
 }
 
 async function disconnectLiveKit(): Promise<void> {
-  if (!lkRoom) return;
+  if (reconnectTimer) clearTimeout(reconnectTimer);
+  reconnectTimer = null;
+  isReconnecting = false;
+  const room = lkRoom;
+  lkRoom = null;
+  lkActive = false;
+  if (!room) return;
   try {
-    await lkRoom.disconnect();
+    await room.disconnect();
   } catch (e) {
     console.warn('[voice] livekit disconnect failed', e);
   }
-  lkRoom = null;
-  lkActive = false;
 }
 
 async function createPeerConnection(remoteUserId: string, isInitiator: boolean): Promise<RTCPeerConnection> {
@@ -831,12 +875,14 @@ function pushPromise(channel: any, event: string, payload: any): Promise<any> {
 }
 
 let vadInterval: ReturnType<typeof setInterval> | null = null;
+let vadAudioContext: AudioContext | null = null;
 
 function startVAD() {
   if (!localStream) return;
 
   try {
     const audioContext = new AudioContext();
+    vadAudioContext = audioContext;
     const source = audioContext.createMediaStreamSource(localStream);
     const analyser = audioContext.createAnalyser();
     analyser.fftSize = 512;
@@ -870,11 +916,6 @@ function startVAD() {
 }
 
 function cleanup() {
-  // Tear down LiveKit first so it can flush its own publish state cleanly.
-  if (lkActive || lkRoom) {
-    void disconnectLiveKit();
-  }
-
   // Stop local media
   if (localStream) {
     localStream.getTracks().forEach(t => t.stop());
@@ -896,6 +937,8 @@ function cleanup() {
     clearInterval(vadInterval);
     vadInterval = null;
   }
+
+  if (vadAudioContext) { void vadAudioContext.close(); vadAudioContext = null; }
 
   // Reset media states
   isMuted = false;

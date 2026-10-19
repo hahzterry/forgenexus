@@ -1,6 +1,7 @@
 <script lang="ts">
   import '../app.css';
   import { goto } from '$app/navigation';
+  import VoiceAudio from '$lib/components/channels/VoiceAudio.svelte';
   import Header from '$lib/components/layout/Header.svelte';
   import ChatBar from '$lib/components/chat/ChatBar.svelte';
   import ImpersonationBanner from '$lib/components/moderation/ImpersonationBanner.svelte';
@@ -181,6 +182,7 @@
 </svelte:head>
 
 <BanNotice />
+<VoiceAudio />
 
 <div class="app-shell" class:no-chatbar={!siteSettings.chatBarEnabled}>
   <ImpersonationBanner />
