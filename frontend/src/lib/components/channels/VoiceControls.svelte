@@ -3,6 +3,11 @@
   import { auth } from '$lib/stores/auth.svelte';
   import WatchPartyPlayer from '$lib/components/channels/WatchPartyPlayer.svelte';
 
+  let expandedShare = $state<string | null>(null);
+  $effect(() => {
+    if (expandedShare && !(expandedShare === 'self' ? voiceStore.isScreenSharing : voiceStore.remoteVideos.has(expandedShare))) expandedShare = null;
+  });
+
   let selfHandRaised = $state(false);
 
   async function toggleHand() {
@@ -32,6 +37,12 @@
     return p.user_id === voiceStore.hostId;
   }
 
+  function openShare(node: HTMLDialogElement) {
+    const previous = document.activeElement as HTMLElement | null;
+    node.showModal();
+    return { destroy() { node.close(); if (previous?.isConnected) previous.focus(); } };
+  }
+
   function attachVideo(node: HTMLVideoElement, video: RemoteVideo) {
     const attach = () => {
       if (video.track) video.track.attach(node);
@@ -49,6 +60,17 @@
 
 {#if voiceStore.isInRoom}
   <WatchPartyPlayer />
+  {#if expandedShare}
+    {@const focused = voiceStore.remoteVideos.get(expandedShare)}
+    <dialog class="share-dialog" use:openShare aria-label="Screen share" oncancel={(event) => { event.preventDefault(); expandedShare = null; }}>
+      <button class="reduce-share" onclick={() => expandedShare = null}>Reduce screen share</button>
+      {#if expandedShare === 'self' && voiceStore.screenStream}
+        <video aria-label="Your enlarged screen share" autoplay muted playsinline srcObject={voiceStore.screenStream}></video>
+      {:else if focused}
+        <video aria-label="Enlarged screen share" autoplay muted playsinline use:attachVideo={focused}></video>
+      {/if}
+    </dialog>
+  {/if}
 
   <!-- Attach SDK video tracks directly so adaptive subscriptions follow the tiles. -->
   {#if voiceStore.isVideoOn || voiceStore.isScreenSharing || voiceStore.remoteVideos.size}
@@ -60,7 +82,8 @@
         </div>
       {/if}
       {#if voiceStore.isScreenSharing && voiceStore.screenStream}
-        <div class="video-tile self screen-preview">
+        <div class="video-tile self screen-preview" class:expanded={expandedShare === 'self'}>
+          <button class="expand-share" aria-label={expandedShare === 'self' ? 'Reduce your screen share' : 'Enlarge your screen share'} aria-pressed={expandedShare === 'self'} onclick={() => expandedShare = expandedShare === 'self' ? null : 'self'}>{expandedShare === 'self' ? 'Reduce' : 'Enlarge'}</button>
           <video aria-label="Your screen share" autoplay muted playsinline srcObject={voiceStore.screenStream}></video>
           <span class="video-label">You · Screen share</span>
         </div>
@@ -68,7 +91,8 @@
       {#each [...voiceStore.remoteVideos.entries()] as [id, video] (id)}
         {@const participant = voiceStore.participants.find(p => p.user_id === video.userId)}
         {#if participant && (video.source === 'camera' ? participant.video : video.source === 'screen_share' ? participant.screen_share : participant.video || participant.screen_share)}
-          <div class="video-tile" data-video-source={video.source}>
+          <div class="video-tile" data-video-source={video.source} class:expanded={expandedShare === id}>
+            {#if video.source === 'screen_share'}<button class="expand-share" aria-label={expandedShare === id ? 'Reduce screen share' : 'Enlarge screen share'} aria-pressed={expandedShare === id} onclick={() => expandedShare = expandedShare === id ? null : id}>{expandedShare === id ? 'Reduce' : 'Enlarge'}</button>{/if}
             <video aria-label={`${participant.username} ${video.source === 'screen_share' ? 'screen share' : 'camera'}`} autoplay muted playsinline use:attachVideo={video}></video>
             <span class="video-label">{participant.username} · {video.source === 'screen_share' ? 'Screen share' : 'Camera'}</span>
           </div>
@@ -277,6 +301,12 @@
 {/if}
 
 <style>
+  .share-dialog { width: 94vw; max-width: 1600px; height: 85dvh; max-height: 90dvh; padding: 12px; box-sizing: border-box; border: 1px solid var(--border-color); border-radius: 10px; background: #080a10; color: #fff; }
+  .share-dialog::backdrop { background: #000c; }
+  .share-dialog video { width: 100%; height: calc(100% - 48px); object-fit: contain; display: block; }
+  .reduce-share { display: block; margin: 0 0 8px auto; padding: 8px 12px; cursor: pointer; background: #242936; color: #fff; border: 1px solid #aaa; border-radius: 5px; }
+  .expand-share { position: absolute; top: 8px; right: 8px; z-index: 1; padding: 6px 10px; color: #fff; background: #171923e6; border: 1px solid #aaa; border-radius: 5px; cursor: pointer; }
+
   /* Video grid */
   .video-grid {
     display: grid;

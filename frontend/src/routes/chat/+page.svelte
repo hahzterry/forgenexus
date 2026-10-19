@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { voiceSetup } from '$lib/stores/voiceSetup.svelte';
   import { auth } from '$lib/stores/auth.svelte';
   import { channelStore, type ChannelMessage } from '$lib/stores/channels.svelte';
   import ChannelSidebar from '$lib/components/channels/ChannelSidebar.svelte';
@@ -107,11 +108,15 @@
   }
 
   async function handleJoinVoiceRoom(roomId: string) {
+    const choice = await voiceSetup.choose(roomId);
+    if (!choice) return;
     const socket = socketStore.getSocket();
-    if (socket) {
-      try { await voiceStore.joinRoom(roomId, socket); }
-      catch (error: any) { toast.error(error?.message || 'Unable to join voice room'); }
+    if (!socket || !socketStore.connected) {
+      toast.error('Chat is still connecting. Please try joining again.');
+      return;
     }
+    try { await voiceStore.joinRoom(roomId, socket, choice); }
+    catch (error: any) { toast.error(error?.message || 'Unable to join voice room'); }
   }
 
   async function handleJumpToMessage(channelSlug: string, messageId: string) {

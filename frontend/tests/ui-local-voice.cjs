@@ -20,6 +20,7 @@ const secondFile=path.join(out,'participant.json');
 let second=fs.existsSync(secondFile)?JSON.parse(fs.readFileSync(secondFile)):null;
 let expectedOutage=false;
 const results=[], errors=[], controls=[], sockets=[];
+async function pageJoinConfirm(page){await page.getByRole('dialog').getByRole('button',{name:'Join room',exact:true}).click();}
 async function snapshot(page) { return page.evaluate(async()=> {
   const {voiceStore:v}=await import(performance.getEntriesByType('resource').find(e=>new URL(e.name).pathname==='/src/lib/stores/voice.svelte.ts')?.name || '/src/lib/stores/voice.svelte.ts');
   const streams=[...v.remoteStreams.values()];
@@ -65,7 +66,7 @@ async function leave(page) { await page.evaluate(async()=>{const {voiceStore}=aw
    });
    await page.goto(BASE+'/threads/'+member.threadSlug);await expect(page.locator('.btn-voice-lounge')).toBeVisible();
   }
-  async function join(page){await page.locator('.btn-voice-lounge').click();await page.locator('.voice-room-card').filter({hasText:room.name}).click();await expect(page.getByRole('button',{name:'📞 Disconnect',exact:true})).toBeVisible();await expect.poll(async()=>(await snapshot(page)).connecting).toBe(false);}
+  async function join(page){await page.locator('.btn-voice-lounge').click();await page.locator('.voice-room-card').filter({hasText:room.name}).click();await pageJoinConfirm(page);await expect(page.getByRole('button',{name:'📞 Disconnect',exact:true})).toBeVisible();await expect.poll(async()=>(await snapshot(page)).connecting).toBe(false);}
   await join(pages[0]);await join(pages[1]);
   await expect.poll(()=>controls.length).toBe(2);
   expect(controls.every(c=>new URL(c.url).hostname==='127.0.0.1')).toBe(true);
@@ -80,7 +81,7 @@ async function leave(page) { await page.evaluate(async()=>{const {voiceStore}=aw
   await pages[0].getByRole('button',{name:'🎧 Deafen',exact:true}).click();let s=await snapshot(pages[0]);expect(s.remoteTracks.every(t=>!t.enabled)).toBe(true);expect(s.muted).toBe(true);
   await pages[0].getByRole('button',{name:'🔕 Undeafen',exact:true}).click();expect((await snapshot(pages[0])).remoteTracks.every(t=>t.enabled)).toBe(true);results.push('deafen and undeafen control received audio');
   await pages[0].getByRole('button',{name:'📞 Disconnect',exact:true}).click();await expect.poll(async()=>(await snapshot(pages[0])).inRoom).toBe(false);await expect.poll(async()=>(await snapshot(pages[1])).participants).toBe(1);expect((await snapshot(pages[0])).localTracks).toEqual([]);await expect.poll(async()=>(await snapshot(pages[0])).audio.length).toBe(0);results.push('leaving clears local tracks, audio elements, and peer presence');
-  await pages[0].locator('.voice-room-card').filter({hasText:room.name}).click();await expect.poll(async()=>(await snapshot(pages[0])).inRoom).toBe(true);await expect.poll(async()=>(await snapshot(pages[0])).audio.some(a=>!a.paused&&a.time>0)).toBe(true);results.push('rejoining restores SFU audio after cleanup');
+  await pages[0].locator('.voice-room-card').filter({hasText:room.name}).click();await pageJoinConfirm(pages[0]);await expect.poll(async()=>(await snapshot(pages[0])).inRoom).toBe(true);await expect.poll(async()=>(await snapshot(pages[0])).audio.some(a=>!a.paused&&a.time>0)).toBe(true);results.push('rejoining restores SFU audio after cleanup');
 
   await pages[0].evaluate(async(roomId)=>{const {voiceStore:v}=await import(performance.getEntriesByType('resource').find(e=>new URL(e.name).pathname==='/src/lib/stores/voice.svelte.ts')?.name || '/src/lib/stores/voice.svelte.ts');const {socketStore:s}=await import(performance.getEntriesByType('resource').find(e=>new URL(e.name).pathname==='/src/lib/stores/socket.svelte.ts')?.name || '/src/lib/stores/socket.svelte.ts');await v.leaveRoom();await v.joinRoom(roomId,s.getSocket());},room.id);
   await expect.poll(async()=>(await snapshot(pages[0])).audio.some(a=>!a.paused&&a.time>0)).toBe(true);results.push('immediate leave/rejoin cannot tear down the new SFU connection');
@@ -94,7 +95,7 @@ async function leave(page) { await page.evaluate(async()=>{const {voiceStore}=aw
   let release,tokenHeld=false;const gate=new Promise(resolve=>release=resolve);
   const tokenPattern='**/api/voice/rooms/'+room.id+'/token';
   await contexts[0].route(tokenPattern,async route=>{tokenHeld=true;await gate;await route.continue();});
-  await pages[0].locator('.voice-room-card').filter({hasText:room.name}).click();
+  await pages[0].locator('.voice-room-card').filter({hasText:room.name}).click();await pageJoinConfirm(pages[0]);
   await expect.poll(()=>tokenHeld).toBe(true);expect((await snapshot(pages[0])).inRoom).toBe(false);expect((await snapshot(pages[0])).connecting).toBe(true);
   release();await expect.poll(async()=>(await snapshot(pages[0])).inRoom).toBe(true);await contexts[0].unroute(tokenPattern);
   await expect.poll(async()=>(await snapshot(pages[0])).audio.some(a=>!a.paused&&a.time>0)).toBe(true);results.push('connected state waits for actual SFU media initialization');

@@ -3,6 +3,7 @@ import { toast } from '$lib/stores/toast.svelte';
 import { auth } from '$lib/stores/auth.svelte';
 import {
   Room as LKRoom,
+  LocalAudioTrack,
   RoomEvent,
   Track,
   type RemoteParticipant,
@@ -46,6 +47,14 @@ export interface RemoteVideo {
   stream: MediaStream;
   track?: RemoteTrack;
 }
+
+export interface VoiceJoinOptions {
+  microphoneId?: string;
+  cameraId?: string;
+  muted?: boolean;
+  camera?: boolean;
+}
+let preferredCameraId = '';
 
 // --- ICE config: STUN baseline + time-limited TURN credentials fetched from
 //     the backend. TURN is required for users behind symmetric NAT — without
@@ -350,7 +359,7 @@ export const voiceStore = {
     }
   },
 
-  async joinRoom(roomId: string, socket: any) {
+  async joinRoom(roomId: string, socket: any, options: VoiceJoinOptions = {}) {
     if (isConnecting) throw new Error('A voice connection is already in progress');
     if (!rooms.some(room => room.id === roomId)) await this.loadRooms();
     const roomData = rooms.find(room => room.id === roomId);
@@ -365,12 +374,17 @@ export const voiceStore = {
       // Get local audio stream
       localStream = await navigator.mediaDevices.getUserMedia({
         audio: {
+          ...(options.microphoneId ? { deviceId: { exact: options.microphoneId } } : {}),
           echoCancellation: true,
           noiseSuppression: true,
           autoGainControl: true
         },
         video: false
       });
+
+      isMuted = !!options.muted;
+      localStream.getAudioTracks().forEach(track => { track.enabled = !isMuted; });
+      preferredCameraId = options.cameraId || '';
 
       // Join the Phoenix voice channel
       voiceChannel = socket.channel(`voice:${roomId}`, {});
@@ -416,6 +430,8 @@ export const voiceStore = {
       activeRoom = roomData;
       // Start voice activity detection
       startVAD();
+      sendMediaUpdate();
+      if (options.camera && yourRole !== 'audience') await this.toggleVideo();
 
     } catch (e) {
       console.error('Failed to join voice room:', e);
@@ -489,11 +505,11 @@ export const voiceStore = {
       } else {
         let stream: MediaStream;
         if (room) {
-          const publication = await room.localParticipant.setCameraEnabled(true);
+          const publication = await room.localParticipant.setCameraEnabled(true, preferredCameraId ? { deviceId: { exact: preferredCameraId } } : undefined);
           if (!publication?.track) throw new Error('Camera did not start');
           stream = new MediaStream([publication.track.mediaStreamTrack]);
         } else {
-          stream = await navigator.mediaDevices.getUserMedia({ video: true });
+          stream = await navigator.mediaDevices.getUserMedia({ video: preferredCameraId ? { deviceId: { exact: preferredCameraId } } : true });
         }
         if (activeRoom?.id !== sessionId || (room && lkRoom !== room)) {
           stream.getTracks().forEach(track => track.stop());
@@ -798,7 +814,10 @@ async function connectLiveKit(roomId: string, wsUrl: string): Promise<void> {
   if (localStream && yourRole !== 'audience') {
     const audioTrack = localStream.getAudioTracks()[0];
     if (audioTrack) {
-      await lkRoom.localParticipant.publishTrack(audioTrack, { source: Track.Source.Microphone });
+      const microphone = new LocalAudioTrack(audioTrack);
+      // Set SDK mute state before publication; wrapping a raw disabled track resets enabled.
+      if (isMuted) await microphone.mute();
+      await lkRoom.localParticipant.publishTrack(microphone, { source: Track.Source.Microphone });
     }
   }
 

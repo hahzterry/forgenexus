@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { voiceSetup } from '$lib/stores/voiceSetup.svelte';
   import { onMount, onDestroy } from 'svelte';
   import { goto } from '$app/navigation';
   import { api } from '$lib/api/client';
@@ -36,7 +37,9 @@
     error = '';
     joining = room.id;
     try {
-      await voiceStore.joinRoom(room.id, socket);
+      const choice = await voiceSetup.choose(room.id, room.name);
+      if (!choice) { joining = null; return; }
+      await voiceStore.joinRoom(room.id, socket, choice);
       goto('/chat');
     } catch (err: any) {
       error = err?.message || 'Unable to join voice room';

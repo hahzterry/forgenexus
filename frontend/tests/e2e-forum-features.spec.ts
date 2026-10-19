@@ -145,13 +145,14 @@ test('voice uses room IDs and participant counts and reports join failure', asyn
   }));
   await openThread(page);
   await page.evaluate(() => {
-    Object.defineProperty(navigator.mediaDevices, 'getUserMedia', { configurable: true, value: async () => ({ getTracks: () => [], getAudioTracks: () => [] }) });
+    Object.defineProperty(navigator.mediaDevices, 'getUserMedia', { configurable: true, value: async () => { const context = new AudioContext(); return context.createMediaStreamDestination().stream; } });
   });
   await expect(page.locator('.btn-voice-lounge')).toBeVisible();
   await page.locator('.btn-voice-lounge').click();
   const room = page.getByRole('button', { name: 'Named lounge 3 participants' });
   await expect(room).toBeVisible();
   await room.click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Join room', exact: true }).click();
   await expect.poll(() => topics).toContain('voice:room-id');
   await expect(page.getByRole('alert')).toContainText('Unable to join voice room');
   await expect(page.getByRole('alert')).not.toContainText('Connected to Voice Lounge!');

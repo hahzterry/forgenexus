@@ -1,6 +1,7 @@
 <script lang="ts">
   import '../app.css';
   import { goto } from '$app/navigation';
+  import VoicePrejoin from '$lib/components/channels/VoicePrejoin.svelte';
   import VoiceAudio from '$lib/components/channels/VoiceAudio.svelte';
   import Header from '$lib/components/layout/Header.svelte';
   import ChatBar from '$lib/components/chat/ChatBar.svelte';
@@ -183,6 +184,7 @@
 
 <BanNotice />
 <VoiceAudio />
+<VoicePrejoin />
 
 <div class="app-shell" class:no-chatbar={!siteSettings.chatBarEnabled}>
   <ImpersonationBanner />

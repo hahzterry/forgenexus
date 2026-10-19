@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { voiceSetup } from '$lib/stores/voiceSetup.svelte';
   import { modal } from '$lib/actions/modal';
   import { decoratePostHtml } from '$lib/forum/post-html';
   import { page } from '$app/stores';
@@ -146,7 +147,9 @@
     if (voiceConnecting) return;
     voiceConnecting = true;
     try {
-      await voiceStore.joinRoom(roomId, socket);
+      const choice = await voiceSetup.choose(roomId);
+      if (!choice) { voiceConnecting = false; return; }
+      await voiceStore.joinRoom(roomId, socket, choice);
       if (voiceStore.activeRoom?.id !== roomId || !voiceStore.localStream) {
         await voiceStore.leaveRoom();
         throw new Error('Unable to join this voice room');
