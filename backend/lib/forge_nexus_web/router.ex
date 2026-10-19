@@ -461,6 +461,10 @@ defmodule ForgeNexusWeb.Router do
     get "/conversations/:conversation_id/calls/active", CallController, :active
     get "/conversations/:conversation_id/calls/history", CallController, :history
 
+    get "/channels/:slug/messages/:id/context", ChatForumTopicController, :context
+    post "/channels/:slug/forum-topic/preview", ChatForumTopicController, :preview
+    post "/channels/:slug/forum-topic", ChatForumTopicController, :create
+
     # Channel-message threading (Discord-style threads-on-message)
     post "/channels/:channel_slug/messages/:message_id/threads", ThreadChatController, :create
     get "/channels/:channel_slug/threads", ThreadChatController, :index

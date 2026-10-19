@@ -371,7 +371,7 @@ defmodule ForgeNexusWeb.ChannelController do
     }
   end
 
-  defp message_json(message) do
+  def message_json(message) do
     user = message.user
     group = user && user.primary_group
 

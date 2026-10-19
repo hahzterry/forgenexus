@@ -1,4 +1,8 @@
 <script lang="ts">
+  import { page } from '$app/stores';
+  import { goto } from '$app/navigation';
+  import { untrack, tick } from 'svelte';
+  import ForumTopicPreview from '$lib/components/channels/ForumTopicPreview.svelte';
   import { voiceSetup } from '$lib/stores/voiceSetup.svelte';
   import { auth } from '$lib/stores/auth.svelte';
   import { channelStore, type ChannelMessage } from '$lib/stores/channels.svelte';
@@ -19,6 +23,32 @@
   let showSearch = $state(false);
   let activeThreadId = $state<string | null>(null);
   let bookmarkedIds = $state<Set<string>>(new Set());
+  let selecting = $state(false);
+  let selectedIds = $state<string[]>([]);
+  let showForumPreview = $state(false);
+  let sourceError = $state('');
+  function toggleSelection(id: string) {
+    selectedIds = selectedIds.includes(id) ? selectedIds.filter(value => value !== id) : [...selectedIds, id];
+  }
+  $effect(() => {
+    if (!auth.isLoggedIn) return;
+    const signature = $page.url.searchParams.toString();
+    untrack(() => { void openSource(new URLSearchParams(signature)); });
+  });
+  async function openSource(params: URLSearchParams) {
+    const slug = params.get('channel'), id = params.get('message');
+    if (!slug) return;
+    sourceError = '';
+    try {
+      if (!await selectChannel(slug)) throw new Error("Channel unavailable");
+      if ($page.url.searchParams.toString() !== params.toString()) return;
+      if (id) {
+        await channelStore.loadMessageContext(slug, id);
+        await tick();
+        if ($page.url.searchParams.toString() === params.toString()) document.getElementById(`msg-${id}`)?.scrollIntoView({block: 'center'});
+      }
+    } catch { if ($page.url.searchParams.toString() === params.toString()) sourceError = 'This original message is no longer available or you cannot access it.'; }
+  }
   // Mobile drawer state — closes automatically on channel select
   let mobileSidebarOpen = $state(false);
 
@@ -62,7 +92,12 @@
   function scrollToBottom() {
     requestAnimationFrame(() => {
       if (messagesContainer) {
-        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        const params = $page.url.searchParams;
+        const sourceId = params.get('message');
+        const source = sourceId && params.get('channel') === channelStore.activeChannel?.slug
+          ? document.getElementById('msg-' + sourceId) : null;
+        if (source) source.scrollIntoView({block: 'center'});
+        else messagesContainer.scrollTop = messagesContainer.scrollHeight;
       }
     });
   }
@@ -70,15 +105,17 @@
   let prevChannelSlug: string | null = null;
 
   async function selectChannel(slug: string) {
+    selecting = false; selectedIds = []; showForumPreview = false;
     replyTo = null;
     editingMessage = null;
     // Leave previous real-time channel, join new one
     if (prevChannelSlug) socketStore.leaveChatChannel(prevChannelSlug);
-    await channelStore.selectChannel(slug);
+    if (!await channelStore.selectChannel(slug)) return false;
     socketStore.joinChatChannel(slug);
     prevChannelSlug = slug;
     mobileSidebarOpen = false;
     scrollToBottom();
+    return true;
   }
 
   async function handleSend(body: string, replyToId?: string) {
@@ -226,6 +263,7 @@
     </div>
 
     <div class="chat-main">
+      {#if sourceError}<p role="alert">{sourceError}</p>{/if}
       {#if !channelStore.activeChannel}
         <!-- No channel selected -->
         <div class="no-channel">
@@ -247,6 +285,9 @@
             {/if}
           </div>
           <div class="ch-actions">
+            {#if !channelStore.activeChannel.is_private && channelStore.activeChannel.type === 'text'}
+              <button class="ch-action-btn" onclick={() => { selecting = !selecting; selectedIds = []; }} aria-pressed={selecting}>Select messages for forum</button>
+            {/if}
             <button class="ch-action-btn" onclick={() => showSearch = true} title="Search messages">
               &#128269;
             </button>
@@ -266,6 +307,13 @@
           <div class="channel-description">{channelStore.activeChannel.description}</div>
         {/if}
 
+        {#if selecting}
+          <div class="selection-toolbar">
+            <span>{selectedIds.length}/20 messages selected</span>
+            <button disabled={!selectedIds.length} onclick={() => showForumPreview = true}>Preview forum topic</button>
+            <button onclick={() => { selecting = false; selectedIds = []; }}>Cancel selection</button>
+          </div>
+        {/if}
         <!-- Messages area -->
         <div class="messages-area" bind:this={messagesContainer} onscroll={handleScroll}>
           {#if channelStore.loadingMessages && channelStore.messages.length === 0}
@@ -290,6 +338,9 @@
               </div>
             {/if}
             {#each channelStore.messages as msg, i (msg.id)}
+              {#if selecting && !msg.is_deleted}
+                <label class="message-selection"><input type="checkbox" checked={selectedIds.includes(msg.id)} disabled={!selectedIds.includes(msg.id) && selectedIds.length >= 20} onchange={() => toggleSelection(msg.id)} />Select message from {msg.user?.username}</label>
+              {/if}
               <ChatMessageComponent
                 message={msg}
                 channelSlug={channelStore.activeChannel?.slug || ''}
@@ -328,6 +379,11 @@
       {/if}
     </div>
 
+    {#if showForumPreview && channelStore.activeChannel}
+      <ForumTopicPreview channelSlug={channelStore.activeChannel.slug} messageIds={[...selectedIds]}
+        onclose={() => showForumPreview = false}
+        oncreated={(slug) => { showForumPreview = false; selectedIds = []; selecting = false; void goto(`/threads/${slug}`); }} />
+    {/if}
     <!-- Voice controls (persistent at bottom when in a room) -->
     <VoiceControls />
 
@@ -348,6 +404,7 @@
 {/if}
 
 <style>
+  .selection-toolbar, .message-selection { padding: 8px 16px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
   .chat-layout {
     display: flex;
     height: calc(100vh - 60px);

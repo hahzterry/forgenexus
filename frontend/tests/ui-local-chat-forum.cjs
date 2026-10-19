@@ -1,0 +1,74 @@
+const {chromium,expect}=require('@playwright/test');
+const fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypto');
+const API=process.env.FN_LOCAL_API_URL,UI=process.env.FN_UI_BASE_URL;
+for(const url of [API,UI])if(!['localhost','127.0.0.1'].includes(new URL(url).hostname))throw Error('Loopback required');
+const fixture=JSON.parse(fs.readFileSync(path.join(process.env.FN_TEST_FIXTURE_DIR,'chat-forum.json')));
+const member=JSON.parse(fs.readFileSync(path.join(process.env.FN_TEST_FIXTURE_DIR,'member.json')));
+(async()=>{
+ const checks=[],check=(name,value)=>{if(!value)throw Error(name);checks.push(name);};
+ const browser=await chromium.launch();
+ try{
+ const context=await browser.newContext({viewport:{width:1280,height:900},extraHTTPHeaders:{'x-fn-ratelimit-bypass':process.env.FN_RATE_LIMIT_BYPASS_TOKEN}});
+ await context.addInitScript(()=>localStorage.setItem('fn_cookie_consent','accepted'));
+ check('real login',(await context.request.post(API+'/auth/login',{data:{email:member.email,password:member.password}})).status()===200);
+ const page=await context.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));
+ await page.goto(UI+'/chat?channel='+fixture.channel);
+ await page.locator('#msg-'+fixture.second).waitFor();
+ await page.getByRole('button',{name:'Select messages for forum'}).click();
+ await page.locator('#msg-'+fixture.first).locator('xpath=preceding-sibling::label[1]').getByRole('checkbox').check();
+ await page.locator('#msg-'+fixture.second).locator('xpath=preceding-sibling::label[1]').getByRole('checkbox').check();
+ check('selection count visible',(await page.locator('.selection-toolbar').innerText()).includes('2/20'));
+ await page.getByRole('button',{name:'Preview forum topic',exact:true}).click();
+ const dialog=page.getByRole('dialog');await dialog.locator('blockquote').first().waitFor();
+ check('preview contains exactly selected messages',await dialog.locator('blockquote').count()===2);
+ check('preview has both real authors',(await dialog.innerText()).includes('fnvoice_ci')&&(await dialog.innerText()).includes('fncheck_ci'));
+ check('source links retain message identities',(await dialog.getByRole('link',{name:'View original message'}).first().getAttribute('href')).includes(fixture.first));
+ check('quoted HTML remains text',await page.evaluate(()=>window.quoteExecuted!==true));
+ await dialog.getByRole('button',{name:'Cancel',exact:true}).click();
+ check('cancel does not navigate or create a topic',page.url().includes('/chat'));
+ await page.getByRole('button',{name:'Preview forum topic',exact:true}).click();await dialog.locator('blockquote').first().waitFor();
+ await dialog.getByLabel('Topic title').fill('Workshop ideas from chat');
+ await dialog.getByLabel('Destination forum').selectOption(fixture.forum_id);
+ await dialog.getByRole('button',{name:'Create topic',exact:true}).click();
+ await page.waitForURL(/\/threads\//);await page.locator('.post-body').first().waitFor();
+ const body=page.locator('.post-body').first();
+ check('real forum topic contains attributed quotes',(await body.innerText()).includes('fnvoice_ci')&&(await body.innerText()).includes("Let's make this a lasting discussion"));
+ check('created post has original source links',await body.getByRole('link',{name:'View original message'}).count()===2);
+ check('created quote cannot execute HTML',await page.evaluate(()=>window.quoteExecuted!==true));
+ await body.getByRole('link',{name:'View original message'}).first().click();await page.waitForURL(/\/chat\?/);await page.locator('#msg-'+fixture.first).waitFor();
+ check('original source link returns to the correct conversation',page.url().includes(fixture.channel));
+ await page.goto(UI+'/chat?channel='+fixture.channel+'&message='+fixture.old);await page.locator('#msg-'+fixture.old).waitFor();
+ check('old source beyond latest 50 messages resolves',await page.locator('#msg-'+fixture.old).isVisible());
+ // Hold one real backend context response while navigating to a newer source.
+ let release,signal;
+ const held=new Promise(resolve=>{signal=resolve;});
+ const gate=new Promise(resolve=>{release=resolve;});
+ await page.route('**/messages/'+fixture.old+'/context',async route=>{
+   const response=await route.fetch();signal();await gate;await route.fulfill({response});
+ },{times:1});
+ async function openSource(id){await page.evaluate(url=>{const a=document.createElement('a');a.href=url;document.body.append(a);a.click();a.remove();},'/chat?channel='+fixture.channel+'&message='+id);}
+ await openSource(fixture.first);await page.locator('#msg-'+fixture.first).waitFor();
+ await openSource(fixture.old);await held;
+ await openSource(fixture.first);await page.waitForResponse(r=>r.url().includes('/messages/'+fixture.first+'/context')&&r.status()===200);
+ await page.locator('#msg-'+fixture.first).waitFor();release();await page.waitForLoadState('networkidle');
+ check('late source response cannot replace newer conversation',await page.locator('#msg-'+fixture.first).count()===1);
+ const endpoint=API+'/channels/'+fixture.channel+'/forum-topic';
+ const ids=[fixture.old];
+ const preview=await context.request.post(endpoint+'/preview',{data:{message_ids:ids}});check('real preview API succeeds',preview.status()===200);
+ const data=await preview.json();
+ const payload={message_ids:ids,revision:data.revision,forum_id:fixture.forum_id,title:'Safe concurrent retry topic',request_id:crypto.randomUUID()};
+ const responses=await Promise.all([context.request.post(endpoint,{data:payload}),context.request.post(endpoint,{data:payload})]);
+ for(const response of responses)if(response.status()!==201)throw Error('Concurrent create: '+response.status()+' '+await response.text());
+ check('concurrent create retries succeed',true);
+ check('concurrent retries return one topic',(await responses[0].json()).thread.id===(await responses[1].json()).thread.id);
+ check('request ID reuse rejects different content',(await context.request.post(endpoint,{data:{...payload,title:'Changed request'}})).status()===409);
+ check('private chat cannot be exported',(await context.request.post(API+'/channels/'+fixture.private+'/forum-topic/preview',{data:{message_ids:ids}})).status()===403);
+ check('malformed selection is rejected',(await context.request.post(endpoint+'/preview',{data:{message_ids:['invalid']}})).status()===422);
+ await context.request.put(API+'/channels/'+fixture.channel+'/messages/'+fixture.old,{data:{body:'Edited after preview'}});
+ check('edited source invalidates preview',(await context.request.post(endpoint,{data:{...payload,request_id:crypto.randomUUID()}})).status()===409);
+ await context.request.delete(API+'/channels/'+fixture.channel+'/messages/'+fixture.old);
+ check('deleted source cannot be published',(await context.request.post(endpoint,{data:{...payload,request_id:crypto.randomUUID()}})).status()===422);
+ check('no browser runtime errors',errors.length===0);
+ }finally{await browser.close();}
+ fs.mkdirSync('test-results/chat-forum-live',{recursive:true});fs.writeFileSync('test-results/chat-forum-live/results.json',JSON.stringify({passed:checks.length,checks},null,2));console.log(checks.length+' real chat-to-forum checks passed');
+})().catch(e=>{console.error(e);process.exitCode=1;});

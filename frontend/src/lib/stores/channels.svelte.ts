@@ -58,6 +58,9 @@ export interface ChannelMessage {
   inserted_at: string;
 }
 
+let channelLoadId = 0;
+let contextLoadId = 0;
+
 let categories = $state<ChannelCategory[]>([]);
 let activeChannel = $state<Channel | null>(null);
 let messages = $state<ChannelMessage[]>([]);
@@ -100,13 +103,29 @@ export const channelStore = {
     loadingChannels = false;
   },
 
+  async loadMessageContext(slug: string, id: string) {
+    const generation = channelLoadId;
+    const request = ++contextLoadId;
+    loadingMessages = true;
+    try {
+      const data = await api.request(`/channels/${encodeURIComponent(slug)}/messages/${encodeURIComponent(id)}/context`);
+      if (generation === channelLoadId && request === contextLoadId && activeChannel?.slug === slug) {
+        messages = data.messages; hasMoreMessages = messages.length >= 50;
+      }
+    } finally {
+      if (generation === channelLoadId && request === contextLoadId) loadingMessages = false;
+    }
+  },
   async selectChannel(slug: string) {
+    const request = ++channelLoadId;
+    ++contextLoadId;
     loadingMessages = true;
     hasMoreMessages = true;
     messages = [];
     slowmodeUntil = 0;
     try {
       const data = await api.getChannel(slug);
+      if (request !== channelLoadId) return false;
       activeChannel = data.channel;
       messages = data.messages || [];
       hasMoreMessages = messages.length >= 50;
@@ -120,13 +139,17 @@ export const channelStore = {
         api.markMentionsRead(activeChannel.id).catch(() => {});
       }
     } catch (e) {
+      if (request === channelLoadId) loadingMessages = false;
       console.error('Failed to load channel:', e);
+      return false;
     }
-    loadingMessages = false;
+    if (request === channelLoadId) loadingMessages = false;
+    return request === channelLoadId;
   },
 
   async loadMoreMessages() {
     if (!activeChannel || !hasMoreMessages || loadingMessages) return;
+    const generation = channelLoadId, context = contextLoadId;
     loadingMessages = true;
     try {
       const oldestId = messages.length > 0 ? messages[0].id : undefined;
@@ -134,13 +157,14 @@ export const channelStore = {
         before: oldestId,
         limit: 50
       });
+      if (generation !== channelLoadId || context !== contextLoadId) return;
       const older = data.messages || [];
       messages = [...older, ...messages];
       hasMoreMessages = older.length >= 50;
     } catch (e) {
       console.error('Failed to load more messages:', e);
     }
-    loadingMessages = false;
+    if (generation === channelLoadId && context === contextLoadId) loadingMessages = false;
   },
 
   async sendMessage(body: string, replyToId?: string) {
